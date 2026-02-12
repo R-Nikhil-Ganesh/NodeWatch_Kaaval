@@ -1,0 +1,51 @@
+### OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+### Dependencies & package managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+### Builds & caches
+dist/
+build/
+.cache/
+.temp/
+out/
+coverage/
+.nyc_output/
+
+### Environment & local config
+.env
+.env.*
+.eslintcache
+
+### Logs & runtime artifacts
+logs/
+*.log
+*.pid
+*.pid.lock
+
+### Frontend (Vite/Expo)
+.expo/
+.expo-shared/
+*.expo/
+
+### Hyperledger Fabric samples
+fabric-samples/test-network/organizations/
+fabric-samples/test-network/crypto-config/
+
+### Wallets & storage
+**/wallet/**
+**/file_storage/**
+
+### Misc
+*.tgz
+*.tar.gz
+tmp/
+temp/

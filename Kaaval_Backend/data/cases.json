@@ -1,0 +1,131 @@
+[
+  {
+    "caseId": "CASE-2024-198",
+    "title": "test-01",
+    "description": "test",
+    "status": "OPEN",
+    "officer": "u_admin_1",
+    "location": "Unspecified",
+    "timestamp": "2026-01-20T05:15:22.181Z",
+    "evidence": [
+      {
+        "id": "ev-1769064618944",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2024_198/evidence_1769064618817.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2024_198\\evidence_1769064618817.jpg",
+        "timestamp": "2026-01-22T06:50:16.840Z",
+        "location": "12.9716° N, 79.1585° E (Transit)",
+        "submittedBy": "u_admin_1",
+        "hash": "552b5c316e163339a30566dce8f9f78ddcdf50c78f1e1483372e7400ad4b8b73",
+        "integrityStatus": "UNVERIFIED",
+        "lastVerifiedAt": null,
+        "metadataHash": "802b2caaf32d91996a79edcc5d5bc6faac3f53e267439f6e68d4131960bf4af1"
+      }
+    ],
+    "blockchainHash": "pending",
+    "createdBy": "u_admin_1",
+    "createdAt": "2026-01-20T05:15:22.181Z",
+    "currentCustodian": "u_admin_1"
+  },
+  {
+    "caseId": "CASE-2026-618",
+    "title": "Test",
+    "officer": "Nikhil Ganesh",
+    "status": "Open",
+    "location": "Che",
+    "timestamp": "2026-01-17T08:10:10.852Z",
+    "evidence": [
+      {
+        "id": "ev-1768698056835",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768698056401.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768698056401.jpg",
+        "timestamp": "2026-01-18T01:00:56.295Z",
+        "location": "13.0850° N, 80.2100° E (Forensic Lab)",
+        "submittedBy": "Nikhil Ganesh",
+        "hash": "43eab22ab77ade9678eb8a2bc768bf1f4b796c5bac47cfee9aabe6d374eb9ff1",
+        "metadataHash": "cf03f6e4609f23a75fc47824c297d9197cab5076c0055027e66fcaa4f945a17b"
+      },
+      {
+        "id": "ev-1768696212916",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768696212550.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768696212550.jpg",
+        "timestamp": "2026-01-18T00:30:12.597Z",
+        "location": "13.0850° N, 80.2100° E (Forensic Lab)",
+        "submittedBy": "Nikhil Ganesh",
+        "hash": "e91b6afe2b34624005f6d3176ac91501725d9d8c085233c684aac65fcd0dfddc",
+        "metadataHash": "75677320e3ca2346d817e36815f520dcaed43dff1f86e899abf1f508b279e7e3"
+      },
+      {
+        "id": "ev-1768653292239",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768653291882.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768653291882.jpg",
+        "timestamp": "2026-01-17T12:34:50.673Z",
+        "location": "12.9716° N, 79.1585° E (Transit)",
+        "hash": "155bc6a1555d7838986290aa4ae2b174b6e9df21b64b12969a94a054e8469fec"
+      },
+      {
+        "id": "ev-1768653157498",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768653157225.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768653157225.jpg",
+        "timestamp": "2026-01-17T12:32:35.979Z",
+        "location": "12.9716° N, 79.1585° E (Transit)",
+        "hash": "c3ffce7468e9e04dd77a3aec5db5a3af38aa98f126fec15be38ea80da07c9cd8"
+      },
+      {
+        "id": "ev-1768639531671",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768639531537.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768639531537.jpg",
+        "timestamp": "2026-01-17T08:45:31.384Z",
+        "location": "13.0850° N, 80.2100° E (Forensic Lab)",
+        "hash": "Qm1768639531384x8z9"
+      },
+      {
+        "id": "ev-1768639241404",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_618/evidence_1768639241391.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_618\\evidence_1768639241391.jpg",
+        "timestamp": "2026-01-17T08:40:41.200Z",
+        "location": "12.9716° N, 79.1585° E (Transit)",
+        "hash": "Qm1768639241200x8z9"
+      }
+    ],
+    "blockchainHash": "pending"
+  },
+  {
+    "caseId": "CASE-2026-885",
+    "title": "test-02",
+    "officer": "Nikhil Ganesh",
+    "status": "Open",
+    "location": "myl",
+    "timestamp": "2026-01-17T06:05:42.744Z",
+    "evidence": [
+      {
+        "id": "ev-1769064330948",
+        "name": "Scene Photo / Document",
+        "type": "image/jpeg",
+        "uri": "http://10.91.63.4:3000/files/CASE_2026_885/evidence_1769064330878.jpg",
+        "filePath": "D:\\chain_of_custody\\Kaaval_Backend\\file_storage\\CASE_2026_885\\evidence_1769064330878.jpg",
+        "timestamp": "2026-01-22T06:45:28.800Z",
+        "location": "13.0850° N, 80.2100° E (Forensic Lab)",
+        "submittedBy": "Nikhil Ganesh",
+        "hash": "4169a3168d4b3f515e1da306ba91e7353f03fc2c6583d5380bf7d4d3cf7fa244",
+        "integrityStatus": "UNVERIFIED",
+        "lastVerifiedAt": null,
+        "metadataHash": "40a6e0420a3d1f2ae94e01bb6f7e42170003e621f36e515ed627da8b344e4df0"
+      }
+    ],
+    "blockchainHash": "pending"
+  }
+]
