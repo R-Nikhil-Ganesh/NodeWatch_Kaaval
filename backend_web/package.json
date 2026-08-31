@@ -1,18 +1,22 @@
 {
   "name": "backend_web",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Central REST API for Kaaval Chain of Custody — backed by PostgreSQL",
   "type": "module",
+  "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:schema": "psql $DATABASE_URL -f db/schema.sql",
+    "db:seed": "node db/seed.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "uuid": "^11.0.3"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0",
+    "uuid": "^9.0.1"
   }
 }
