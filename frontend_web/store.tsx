@@ -1,7 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Case, Evidence, AccessLog, User, UserRole, LegalDocument, CaseStatus, IntegrityStatus, EvidenceVisibility, EvidenceClassification } from './types';
-import { INITIAL_CASES, INITIAL_EVIDENCE, INITIAL_LOGS, MOCK_USERS } from './constants';
+import { INITIAL_CASES, INITIAL_EVIDENCE, INITIAL_LOGS } from './constants';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 interface AppState {
   isAuthenticated: boolean;
@@ -49,7 +51,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  const [users, setUsers] = useState<User[]>([]);
   
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -64,6 +66,29 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       setTheme('dark');
       document.documentElement.classList.add('dark');
     }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUsers = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/users`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (isMounted) {
+          setUsers(payload);
+        }
+      } catch (error) {
+        console.error('Failed to load users', error);
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -121,6 +146,18 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
             details: `Updated profile for ${updatedUser.name} (${updatedUser.role})`
         });
     }
+
+    fetch(`${API_BASE}/api/users/${updatedUser.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...updatedUser,
+        actorId: currentUser?.id,
+        actorRole: currentUser?.role
+      })
+    }).catch((error) => {
+      console.error('Failed to update user', error);
+    });
   };
 
   const addCase = (newCase: Case) => {

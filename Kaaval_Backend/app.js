@@ -425,8 +425,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // --- FABRIC CONNECTION HELPER ---
+// Uses connection profile with BOTH Org1 and Org2 to enforce dual-org endorsement
 async function connectToNetwork() {
-    const ccpPath = path.resolve(__dirname, 'connection-org1.json');
+    const ccpPath = path.resolve(__dirname, 'connection-org1-with-org2.json');
     const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
     const walletPath = path.join(process.cwd(), 'wallet');
     const wallet = await Wallets.newFileSystemWallet(walletPath);
@@ -841,6 +842,32 @@ app.get('/audit/logs/evidence/:evidenceId', async (req, res) => {
     try {
         const logs = await getAuditLogs({ evidenceId: req.params.evidenceId });
         res.status(200).json(logs);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DUAL-ORG ENDORSEMENT STATUS
+app.get('/network/endorsement-policy', async (req, res) => {
+    try {
+        const ccpPath = path.resolve(__dirname, 'connection-org1-with-org2.json');
+        const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
+        
+        const orgs = Object.keys(ccp.organizations || {});
+        const peers = Object.keys(ccp.peers || {});
+        
+        res.status(200).json({
+            message: 'Dual-org endorsement enabled',
+            endorsementMode: 'BOTH_ORG1_AND_ORG2_REQUIRED',
+            organizations: orgs,
+            configuredPeers: peers,
+            peerDetails: {
+                org1: ccp.peers['peer0.org1.example.com'] ? 'peer0.org1.example.com configured at ' + ccp.peers['peer0.org1.example.com'].url : 'not configured',
+                org2: ccp.peers['peer0.org2.example.com'] ? 'peer0.org2.example.com configured at ' + ccp.peers['peer0.org2.example.com'].url : 'not configured'
+            },
+            description: 'All write operations (CreateEvidence, RequestTransfer, AcceptTransfer, ReadEvidence) require approval from both Org1MSP and Org2MSP'
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

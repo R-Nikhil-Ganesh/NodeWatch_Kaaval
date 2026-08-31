@@ -42,8 +42,8 @@ export const state = {
       id: 'u_admin_1',
       username: 'admin1',
       password: 'password123',
-      email: 'director.smith@agency.gov',
-      name: 'Director A. Smith',
+      email: 'rajendran.k@tnpolice.gov.in',
+      name: 'K. Rajendran',
       role: 'ADMIN',
       designation: 'IT Director'
     },
@@ -51,8 +51,8 @@ export const state = {
       id: 'u_admin_2',
       username: 'admin2',
       password: 'password123',
-      email: 'k.jones@agency.gov',
-      name: 'Dep. Director K. Jones',
+      email: 'priya.kumar@tnpolice.gov.in',
+      name: 'Priya Kumar',
       role: 'ADMIN',
       designation: 'System Administrator'
     },
@@ -60,8 +60,8 @@ export const state = {
       id: 'u_police_1',
       username: 'police1',
       password: 'password123',
-      email: 'j.doe@police.gov',
-      name: 'J. Doe',
+      email: 'murugan.s@tnpolice.gov.in',
+      name: 'S. Murugan',
       role: 'POLICE',
       badgeNumber: 'TN-PD-402',
       designation: 'Inspector of Police'
@@ -70,8 +70,8 @@ export const state = {
       id: 'u_police_2',
       username: 'police2',
       password: 'password123',
-      email: 'm.rodriguez@police.gov',
-      name: 'M. Rodriguez',
+      email: 'anbu.selvam@tnpolice.gov.in',
+      name: 'Anbu Selvam',
       role: 'POLICE',
       badgeNumber: 'TN-PD-551',
       designation: 'Superintendent of Police (SP)'
@@ -80,8 +80,8 @@ export const state = {
       id: 'u_forensics_1',
       username: 'forensic1',
       password: 'password123',
-      email: 'b.wayne@lab.gov',
-      name: 'Dr. B. Wayne',
+      email: 'karthik.venkat@tnfsl.gov.in',
+      name: 'Dr. Karthik Venkat',
       role: 'FORENSICS',
       designation: 'Senior Scientific Officer'
     },
@@ -89,8 +89,8 @@ export const state = {
       id: 'u_forensics_2',
       username: 'forensic2',
       password: 'password123',
-      email: 'l.fox@lab.gov',
-      name: 'L. Fox',
+      email: 'lakshmi.raman@tnfsl.gov.in',
+      name: 'Lakshmi Raman',
       role: 'FORENSICS',
       designation: 'Scientific Assistant'
     },
@@ -98,8 +98,8 @@ export const state = {
       id: 'u_legal_1',
       username: 'legal1',
       password: 'password123',
-      email: 'h.dent@da.gov',
-      name: 'H. Dent',
+      email: 'vijay.sundaram@tngovt.in',
+      name: 'Vijay Sundaram',
       role: 'LEGAL',
       designation: 'Public Prosecutor'
     },
@@ -107,8 +107,8 @@ export const state = {
       id: 'u_legal_2',
       username: 'legal2',
       password: 'password123',
-      email: 'j.dredd@court.gov',
-      name: 'J. Dredd',
+      email: 'meena.krishnan@tnhc.gov.in',
+      name: 'Meena Krishnan',
       role: 'LEGAL',
       designation: 'District Judge'
     }

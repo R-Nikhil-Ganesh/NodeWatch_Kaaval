@@ -9,6 +9,38 @@ import { Evidence, Case } from '../types';
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000');
+
+const normalizeFileUri = (uri?: string) => {
+  if (!uri) return uri;
+  if (uri.startsWith('/files/')) {
+    return `${API_BASE_URL}${uri}`;
+  }
+
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    try {
+      const url = new URL(uri);
+      if (url.pathname.startsWith('/files/')) {
+        const base = new URL(API_BASE_URL);
+        url.protocol = base.protocol;
+        url.host = base.host;
+        return url.toString();
+      }
+    } catch {
+      return uri;
+    }
+  }
+
+  return uri;
+};
+
+const normalizeEvidenceUris = (caseItem: Case) => {
+  if (!caseItem?.evidence?.length) return caseItem;
+  const evidence = caseItem.evidence.map(item => ({
+    ...item,
+    uri: normalizeFileUri(item.uri),
+  }));
+  return { ...caseItem, evidence };
+};
 class ApiService {
   private api: AxiosInstance;
 
@@ -25,7 +57,8 @@ class ApiService {
   async listCases() {
     try {
       const response = await this.api.get('/cases');
-      return response.data;
+      const cases = (response.data || []).map((item: Case) => normalizeEvidenceUris(item));
+      return cases;
     } catch (error) {
       this.handleError(error);
     }
@@ -34,7 +67,7 @@ class ApiService {
   async getCase(caseID: string) {
     try {
       const response = await this.api.get(`/cases/${caseID}`);
-      return response.data;
+      return normalizeEvidenceUris(response.data as Case);
     } catch (error) {
       this.handleError(error);
     }
@@ -117,6 +150,9 @@ class ApiService {
 
       const data = await res.json();
       console.log('uploadCaseEvidence <- response', res.status);
+      if (data?.evidence?.uri) {
+        data.evidence.uri = normalizeFileUri(data.evidence.uri);
+      }
       return data;
     } catch (error) {
       this.handleError(error);

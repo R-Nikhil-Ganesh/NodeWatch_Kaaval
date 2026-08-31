@@ -6,8 +6,20 @@ import { state, DESIGNATIONS } from './data.js';
 const app = express();
 const PORT = process.env.PORT || 4000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const EXTRA_ORIGINS = (process.env.CORS_EXTRA_ORIGINS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = new Set([FRONTEND_ORIGIN, 'http://localhost:3000', ...EXTRA_ORIGINS]);
 
-app.use(cors({ origin: FRONTEND_ORIGIN }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  }
+}));
 app.use(express.json({ limit: '5mb' }));
 
 const sanitizeUser = (user) => {
@@ -33,10 +45,14 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  const user = state.users.find(
-    (u) => u.username === username && (!u.password || u.password === password)
-  );
+  const { username, email, password } = req.body || {};
+  const identifier = (email || username || '').toLowerCase();
+  const user = state.users.find((u) => {
+    const usernameMatch = username && u.username === username;
+    const emailMatch = identifier && u.email && u.email.toLowerCase() === identifier;
+    const usernameIdentifierMatch = identifier && u.username === identifier;
+    return (usernameMatch || emailMatch || usernameIdentifierMatch) && (!u.password || u.password === password);
+  });
 
   if (!user) {
     return res.status(401).json({ message: 'Invalid credentials' });

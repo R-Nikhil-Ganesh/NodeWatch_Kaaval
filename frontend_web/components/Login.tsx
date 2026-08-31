@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { MOCK_USERS } from '../constants';
 import { Button, Input, Card } from './Common';
 import { Shield, AlertCircle, Fingerprint, ArrowLeft, Lock } from 'lucide-react';
 import { UserRole, User } from '../types';
@@ -9,6 +8,7 @@ type AuthStage = 'CREDENTIALS' | 'PIN' | 'BIOMETRIC';
 
 export const Login = () => {
     const { login } = useStore();
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
     
     // State
     const [stage, setStage] = useState<AuthStage>('CREDENTIALS');
@@ -30,17 +30,33 @@ export const Login = () => {
     }, [stage]);
 
     // STAGE 1: Validate Email/Password
-    const handleCredentialsSubmit = (e: React.FormEvent) => {
+    const handleCredentialsSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
-        const user = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-        
-        if (user) {
-            setTempUser(user);
-            setStage('PIN');
-        } else {
+        try {
+            const response = await fetch(`${apiBase}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            if (!response.ok) {
+                setError('Invalid credentials.');
+                return;
+            }
+
+            const payload = await response.json();
+            if (payload?.user) {
+                setTempUser(payload.user);
+                setStage('PIN');
+                return;
+            }
+
             setError('Invalid credentials.');
+        } catch (error) {
+            console.error('Login failed', error);
+            setError('Unable to reach authentication service.');
         }
     };
 
@@ -238,16 +254,16 @@ export const Login = () => {
             {/* Hint Box */}
             <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gov-500 dark:text-gov-400 max-w-2xl text-center opacity-60 hover:opacity-100 transition-opacity">
                 <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
-                    <strong>Admin</strong><br/>director.smith@agency.gov<br/>password123
+                    <strong>Admin</strong><br/>rajendran.k@tnpolice.gov.in<br/>password123
                 </div>
                 <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
-                    <strong>Police</strong><br/>j.doe@police.gov<br/>password123
+                    <strong>Police</strong><br/>murugan.s@tnpolice.gov.in<br/>password123
                 </div>
                 <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
-                    <strong>Forensics</strong><br/>b.wayne@lab.gov<br/>password123
+                    <strong>Forensics</strong><br/>karthik.venkat@tnfsl.gov.in<br/>password123
                 </div>
                 <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
-                    <strong>Legal</strong><br/>h.dent@da.gov<br/>password123
+                    <strong>Legal</strong><br/>vijay.sundaram@tngovt.in<br/>password123
                 </div>
             </div>
         </div>

@@ -56,6 +56,8 @@ npm start
 - 📊 **[VERIFICATION_CHECKLIST.md](VERIFICATION_CHECKLIST.md)** - Test checklist to verify everything works
 
 - 🐛 **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- 🔐 **[ENDORSEMENT_QUICK_START.md](ENDORSEMENT_QUICK_START.md)** - Enable dual-org approval (Org1 + Org2)
+- 📜 **[ENDORSEMENT_POLICY.md](ENDORSEMENT_POLICY.md)** - Detailed endorsement policy documentation
 - ❓ **This README** - Overview and quick reference
 
 ---
@@ -223,8 +225,20 @@ npm install
 - ✓ Mock authentication
 - ✓ HTTP (not HTTPS)
 - ✓ No rate limiting
+- ⚠️ **Single org endorsement** (see below to enable dual-org approval)
+
+### Enabling Dual Organization Endorsement
+**RECOMMENDED FOR PRODUCTION**: Require both Org1 and Org2 to approve all transactions
+
+📚 **Quick Setup:** Follow [ENDORSEMENT_QUICK_START.md](ENDORSEMENT_QUICK_START.md)
+
+This ensures:
+- No single organization can modify records unilaterally
+- Chain of custody requires multi-party consensus
+- Enhanced security and accountability
 
 ### Before Production
+- [ ] **Enable dual-org endorsement policy** (see ENDORSEMENT_QUICK_START.md)
 - [ ] Implement JWT authentication
 - [ ] Add rate limiting
 - [ ] Configure CORS properly
