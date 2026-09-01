@@ -49,3 +49,5 @@ fabric-samples/test-network/crypto-config/
 *.tar.gz
 tmp/
 temp/
+
+chaincode/evidence/go/vendor
