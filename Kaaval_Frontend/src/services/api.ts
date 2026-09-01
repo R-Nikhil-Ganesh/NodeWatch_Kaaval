@@ -1,14 +1,35 @@
 // src/services/api.ts
 import axios, { AxiosInstance } from 'axios';
 import * as FileSystem from 'expo-file-system/legacy';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { Evidence, Case } from '../types';
 
-// Configure backend URL
-// Priority: EXPO_PUBLIC_API_BASE_URL (.env) -> emulator loopback on Android -> localhost
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000');
+export function getApiBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+    return process.env.EXPO_PUBLIC_API_BASE_URL;
+  }
+
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
+    (Constants as any).manifest?.debuggerHost;
+
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}:3000`;
+    }
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+
+  return 'http://localhost:3000';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 const normalizeFileUri = (uri?: string) => {
   if (!uri) return uri;

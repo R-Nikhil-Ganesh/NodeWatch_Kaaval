@@ -11,7 +11,7 @@ import { USERS } from '../data/mockData';
 type DashboardProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
 export default function DashboardScreen({ navigation }: { navigation: DashboardProp }) {
-  const { user, cases, loading, error } = useApp();
+  const { user, users, cases, loading, error } = useApp();
 
   // Show error alert if any
   React.useEffect(() => {
@@ -20,35 +20,51 @@ export default function DashboardScreen({ navigation }: { navigation: DashboardP
     }
   }, [error]);
 
-  // Admin Stats Calculation
-  const investigatorCount = USERS.filter(u => u.role === 'investigator').length;
-  const forensicsCount = USERS.filter(u => u.role === 'forensics').length;
+  // Admin Stats Calculation (safe fallback from context users or mock list)
+  const allUsers = users?.length ? users : (USERS || []);
+  const investigatorCount = allUsers.filter(u => {
+    const r = (u.role || '').toLowerCase();
+    return r === 'investigator' || r === 'police';
+  }).length;
+  const forensicsCount = allUsers.filter(u => {
+    const r = (u.role || '').toLowerCase();
+    return r === 'forensics';
+  }).length;
+
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+
+  const getStatusBadgeColor = (status?: string) => {
+    const s = (status || 'OPEN').toUpperCase();
+    if (s === 'CLOSED' || s === 'VERIFIED') return { bg: 'rgba(74, 222, 128, 0.2)', text: COLORS.success };
+    if (s === 'UNDER_INVESTIGATION') return { bg: 'rgba(56, 189, 248, 0.2)', text: COLORS.primary };
+    if (s === 'SUBMITTED_TO_COURT') return { bg: 'rgba(192, 132, 252, 0.2)', text: '#c084fc' };
+    if (s === 'FROZEN') return { bg: 'rgba(239, 68, 68, 0.2)', text: COLORS.danger };
+    return { bg: 'rgba(250, 204, 21, 0.2)', text: '#facc15' };
+  };
 
   const renderHeader = () => (
     <View>
       {/* --- RESPONSIVE HEADER FIX --- */}
       <View style={styles.header}>
         <View style={styles.headerTextContainer}>
-          {/* Removed numberOfLines so full name wraps to next line if needed */}
           <Text style={styles.greeting}>
             Welcome, {user?.name}
           </Text>
-          <Text style={styles.userRole}>{user?.role.toUpperCase()} • TN POLICE</Text>
+          <Text style={styles.userRole}>{user?.role?.toUpperCase()} • TN POLICE</Text>
         </View>
         
-        {/* flexShrink: 0 ensures button never gets squashed */}
         <TouchableOpacity onPress={() => navigation.replace('Auth')} style={styles.logoutBtn}>
           <Ionicons name="log-out-outline" size={22} color={COLORS.danger} />
         </TouchableOpacity>
       </View>
 
       {/* --- ADMIN ONLY SECTION: USER STATS --- */}
-      {user?.role === 'admin' && (
+      {isAdmin && (
         <View style={styles.adminStatsRow}>
           <View style={[styles.statCard, { backgroundColor: '#334155' }]}>
             <Ionicons name="people" size={20} color={COLORS.primary} style={{ marginBottom: 5 }} />
             <Text style={styles.statNum}>{investigatorCount}</Text>
-            <Text style={styles.statLabel}>Investigators</Text>
+            <Text style={styles.statLabel}>Officers</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: '#334155' }]}>
             <Ionicons name="flask" size={20} color={COLORS.secondary} style={{ marginBottom: 5 }} />
@@ -65,15 +81,20 @@ export default function DashboardScreen({ navigation }: { navigation: DashboardP
           <Text style={styles.statLabel}>Total Cases</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statNum}>{cases.filter(c => c.status === 'Verified').length}</Text>
-          <Text style={[styles.statLabel, { color: COLORS.success }]}>Verified</Text>
+          <Text style={styles.statNum}>
+            {cases.filter(c => {
+              const s = (c.status || '').toUpperCase();
+              return s === 'OPEN' || s === 'UNDER_INVESTIGATION';
+            }).length}
+          </Text>
+          <Text style={[styles.statLabel, { color: COLORS.primary }]}>Active</Text>
         </View>
       </View>
 
       {/* Section Header */}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Active Cases</Text>
-        {(user?.role === 'investigator' || user?.role === 'admin') && (
+        <Text style={styles.sectionTitle}>Cases Ledger</Text>
+        {((user?.role || '').toLowerCase() === 'investigator' || (user?.role || '').toLowerCase() === 'police' || isAdmin) && (
           <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateCase')}>
             <Ionicons name="add" size={18} color="white" />
             <Text style={styles.addBtnText}>New Case</Text>
@@ -90,33 +111,37 @@ export default function DashboardScreen({ navigation }: { navigation: DashboardP
         keyExtractor={item => item.caseId}
         contentContainerStyle={{ padding: SIZES.padding }}
         ListHeaderComponent={renderHeader}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.caseCard} 
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('Evidence', { caseId: item.caseId })}
-          >
-            <View style={styles.caseHeader}>
-              <Text style={styles.caseId}>{item.caseId}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: item.status === 'Verified' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(250, 204, 21, 0.2)' }]}>
-                <Text style={[styles.statusText, { color: item.status === 'Verified' ? COLORS.success : '#facc15' }]}>
-                  {item.status}
-                </Text>
+        renderItem={({ item }) => {
+          const badge = getStatusBadgeColor(item.status);
+          const displayStatus = (item.status || 'OPEN').toString().replace(/_/g, ' ');
+          return (
+            <TouchableOpacity 
+              style={styles.caseCard} 
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('Evidence', { caseId: item.caseId })}
+            >
+              <View style={styles.caseHeader}>
+                <Text style={styles.caseId}>{item.caseId}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
+                  <Text style={[styles.statusText, { color: badge.text }]}>
+                    {displayStatus}
+                  </Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.caseTitle}>{item.title}</Text>
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <Ionicons name="person" size={12} color={COLORS.textDim} />
-                <Text style={styles.metaText}>{item.officer}</Text>
+              <Text style={styles.caseTitle}>{item.title}</Text>
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <Ionicons name="person" size={12} color={COLORS.textDim} />
+                  <Text style={styles.metaText}>{item.officer || 'Unassigned'}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Ionicons name="calendar" size={12} color={COLORS.textDim} />
+                  <Text style={styles.metaText}>{item.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'Recent'}</Text>
+                </View>
               </View>
-              <View style={styles.metaItem}>
-                <Ionicons name="calendar" size={12} color={COLORS.textDim} />
-                <Text style={styles.metaText}>{new Date(item.timestamp).toLocaleDateString()}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          );
+        }}
       />
     </ScreenWrapper>
   );

@@ -1,12 +1,32 @@
-import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, Case } from '../types';
-import { MOCK_LEDGER, USERS as INITIAL_USERS } from '../data/mockData';
+/**
+ * src/context/AppContext.tsx
+ *
+ * Application state and data layer.
+ *
+ * Offline-first strategy:
+ * 1. On boot, read immediately from local SQLite (zero network dependency).
+ * 2. Attempt a background sync from the central API to pull fresh data.
+ * 3. All writes go to SQLite first, then enqueue a sync task.
+ * 4. Register sync listeners (foreground + network reconnect) so the queue
+ *    drains automatically when connectivity is available.
+ */
+
+import React, { useState, createContext, useContext, ReactNode, useEffect, useRef } from 'react';
+import * as SecureStore from 'expo-secure-store';
+import * as FileSystem from 'expo-file-system/legacy';
+import { User, Case, normalizeCaseStatus } from '../types';
+import { MOCK_LEDGER } from '../data/mockData';
 import { apiService } from '../services/api';
+import * as DB from '../db/index';
+import { enqueue } from '../db/index';
+import { registerSyncListeners, flushSyncQueue } from '../db/sync';
+
+const JWT_STORE_KEY = 'kaaval_jwt_v1';
 
 interface AppContextType {
   user: User | null;
   users: User[];
+  token: string | null;
   setUser: (user: User | null) => void;
   registerUser: (newUser: User) => void;
   cases: Case[];
@@ -19,113 +39,209 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [cases, setCases] = useState<Case[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [user, setUserState]   = useState<User | null>(null);
+  const [token, setToken]      = useState<string | null>(null);
+  const [cases, setCases]      = useState<Case[]>([]);
+  const [users, setUsers]      = useState<User[]>([]);
+  const [loading, setLoading]  = useState(false);
+  const [error, setError]      = useState<string | null>(null);
+  const tokenRef               = useRef<string | null>(null);   // stable ref for sync listeners
 
-  // 1. Load Data on Startup
+  const setUser = (u: User | null) => setUserState(u);
+
+  // ─── BOOT: SQLite-first load ────────────────────────────────────────────
+
   useEffect(() => {
-    const loadData = async () => {
+    const boot = async () => {
       try {
-        // Load Cases from backend; fallback to local mocks
-        const remoteCases = await apiService.listCases();
-        if (remoteCases) {
-          setCases(remoteCases);
-          await AsyncStorage.setItem('cases', JSON.stringify(remoteCases));
+        // 1. Open local DB and run schema (fast — no network)
+        await DB.openDatabase();
+
+        // 2. Check for stored JWT (offline session restore)
+        const storedToken = await SecureStore.getItemAsync(JWT_STORE_KEY);
+        if (storedToken) {
+          setToken(storedToken);
+          tokenRef.current = storedToken;
+        }
+
+        // 3. Load cases from SQLite immediately (zero latency)
+        const localCases = await DB.getAllLocalCases();
+        if (localCases.length > 0) {
+          // Map local_cases rows to the Case type expected by screens
+          setCases(localCases.map(mapLocalCaseToCase));
         } else {
+          // Absolute first-launch fallback — show mock ledger until sync completes
           setCases(MOCK_LEDGER);
         }
 
-        // Load Users (local only for now)
-        const storedUsers = await AsyncStorage.getItem('users');
-        if (storedUsers) {
-          setUsers(JSON.parse(storedUsers));
-        } else {
-          setUsers(INITIAL_USERS);
-          await AsyncStorage.setItem('users', JSON.stringify(INITIAL_USERS));
-        }
+        // 4. Attempt background pull from central API (non-blocking)
+        pullRemoteCases(storedToken);
+
       } catch (e) {
-        console.error("Failed to load persistence", e);
+        console.error('[AppProvider] Boot error:', e);
       }
     };
-    loadData();
+    boot();
   }, []);
 
-  // 2. Register New User (Persisted)
-  const registerUser = async (newUser: User) => {
-    const updatedUsers = [...users, newUser];
-    setUsers(updatedUsers);
-    await AsyncStorage.setItem('users', JSON.stringify(updatedUsers));
+  // ─── SYNC LISTENERS (foreground + network reconnect) ────────────────────
+
+  useEffect(() => {
+    const cleanup = registerSyncListeners(() => tokenRef.current);
+    return cleanup;
+  }, []);
+
+  // ─── BACKGROUND PULL ─────────────────────────────────────────────────────
+
+  const pullRemoteCases = async (authToken?: string | null) => {
+    try {
+      const remoteCases = await apiService.listCases();
+      if (!remoteCases || !remoteCases.length) return;
+
+      // Persist to SQLite
+      for (const c of remoteCases) {
+        await DB.upsertLocalCase(mapCaseToLocal(c));
+      }
+
+      // Update React state
+      setCases(remoteCases);
+
+      // Flush any queued local mutations now that we're online
+      await flushSyncQueue(authToken ?? tokenRef.current ?? undefined);
+    } catch (e) {
+      // Network unreachable — SQLite data already loaded, nothing to do
+      console.log('[AppProvider] Remote pull skipped (offline):', (e as Error).message);
+    }
   };
 
-  // 3. Add New Case (Persisted + API)
+  // ─── REGISTER NEW USER ────────────────────────────────────────────────────
+
+  const registerUser = async (newUser: User) => {
+    setUsers(prev => [...prev, newUser]);
+    await DB.upsertLocalUser({
+      user_id:    newUser.id,
+      username:   (newUser as any).username || newUser.email,
+      name:       newUser.name,
+      role:       newUser.role,
+      designation: newUser.designation,
+    });
+  };
+
+  // ─── ADD CASE ─────────────────────────────────────────────────────────────
+
   const addCase = async (newCase: Case) => {
     setLoading(true);
     setError(null);
     try {
+      const normalizedStatus = normalizeCaseStatus(newCase.status);
       const payload: Case = {
         ...newCase,
-        timestamp: newCase.timestamp || new Date().toISOString(),
-        blockchainHash: newCase.blockchainHash || 'pending',
+        status:          normalizedStatus,
+        timestamp:       newCase.timestamp || new Date().toISOString(),
+        blockchainHash:  newCase.blockchainHash || 'pending',
       };
 
+      // 1. Write to local SQLite immediately (offline-safe)
+      await DB.upsertLocalCase(mapCaseToLocal({ ...payload, sync_status: 'PENDING_CREATE' }));
+      setCases(prev => [payload, ...prev]);
+
+      // 2. Enqueue for remote sync
+      await enqueue({ entityType: 'CASE', entityId: payload.caseId, actionType: 'CREATE', payload });
+
+      // 3. Try to push immediately if online
       const created = await apiService.createCase(payload, {
-        userId: user?.id,
+        userId:   user?.id,
         userRole: user?.role?.toUpperCase(),
-        userOrg: 'POLICE',
+        userOrg:  'POLICE',
       });
-      const updatedCases = created ? [created, ...cases] : [payload, ...cases];
-      setCases(updatedCases);
-      await AsyncStorage.setItem('cases', JSON.stringify(updatedCases));
+      if (created) {
+        // Mark as synced once confirmed
+        await DB.upsertLocalCase(mapCaseToLocal({ ...created, sync_status: 'SYNCED' }));
+      }
     } catch (err: any) {
-      setError(err.message);
-      console.error('Failed to add case', err);
+      // Network failure is OK — stays queued in SQLite for later sync
+      console.log('[addCase] Offline, queued for sync:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // 4. Update Evidence (Persisted + API)
+  // ─── UPDATE CASE EVIDENCE ─────────────────────────────────────────────────
+
   const updateCaseEvidence = async (caseId: string, newEvidence: any) => {
     setLoading(true);
     setError(null);
     try {
-      const hash = newEvidence.hash || '0x' + Math.random().toString(16).substr(2, 64);
-      console.log('updateCaseEvidence -> upload', { caseId, uri: newEvidence.uri, hash });
+      const hash       = newEvidence.hash || '0x' + Date.now().toString(16);
+      const evidenceId = `ev-${Date.now()}`;
+      const now        = new Date().toISOString();
+
+      // 1. Write evidence to local SQLite immediately
+      await DB.upsertLocalEvidence({
+        evidence_id:        evidenceId,
+        case_id:            caseId,
+        name:               newEvidence.name || 'Evidence',
+        file_name:          newEvidence.name || 'evidence',
+        type:               (newEvidence.type || 'IMAGE').toUpperCase(),
+        local_file_uri:     newEvidence.uri || '',
+        file_hash:          hash,
+        metadata_hash:      '',
+        collected_location: newEvidence.location || '',
+        collected_timestamp: now,
+        sync_status:        'PENDING_UPLOAD',
+        created_at:         now,
+        updated_at:         now,
+      });
+
+      // Update local cases state
+      const savedEvidence = { ...newEvidence, hash, evidenceId };
+      setCases(prev => prev.map(c => {
+        if (c.caseId !== caseId) return c;
+        return { ...c, evidence: [savedEvidence, ...(c.evidence || [])] };
+      }));
+
+      // 2. Try to upload to backend immediately
       const uploadResp = await apiService.uploadCaseEvidence(caseId, newEvidence.uri, {
-        name: newEvidence.name,
-        location: newEvidence.location,
-        type: newEvidence.mimeType || newEvidence.type,
+        name:      newEvidence.name,
+        location:  newEvidence.location,
+        type:      newEvidence.mimeType || newEvidence.type,
         timestamp: newEvidence.timestamp,
         hash,
-        userId: user?.id,
-        userRole: user?.role?.toUpperCase(),
-        userOrg: 'POLICE',
+        userId:    user?.id,
+        userRole:  user?.role?.toUpperCase(),
+        userOrg:   'POLICE',
       });
 
-      const savedEvidence = uploadResp?.evidence || { ...newEvidence, hash };
-      const updatedCases = cases.map(c => {
-        if (c.caseId === caseId) {
-          const existingEvidence = c.evidence || [];
-          return { ...c, evidence: [savedEvidence, ...existingEvidence] };
-        }
-        return c;
-      });
-
-      setCases(updatedCases);
-      await AsyncStorage.setItem('cases', JSON.stringify(updatedCases));
+      if (uploadResp?.evidence) {
+        // Update local record with remote URL
+        await DB.upsertLocalEvidence({
+          evidence_id:    evidenceId,
+          case_id:        caseId,
+          name:           newEvidence.name || 'Evidence',
+          file_name:      newEvidence.name || 'evidence',
+          type:           (newEvidence.type || 'IMAGE').toUpperCase(),
+          local_file_uri: newEvidence.uri || '',
+          remote_file_url: uploadResp.evidence.file_url || uploadResp.evidence.uri,
+          file_hash:      hash,
+          metadata_hash:  '',
+          sync_status:    'SYNCED',
+          created_at:     now,
+          updated_at:     new Date().toISOString(),
+        });
+      }
     } catch (err: any) {
-      setError(err.message);
-      console.error('Failed to update case evidence', err);
+      // Stay queued offline — the sync worker will retry
+      console.log('[updateCaseEvidence] Offline, queued:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <AppContext.Provider value={{ user, setUser, users, registerUser, cases, addCase, updateCaseEvidence, loading, error }}>
+    <AppContext.Provider value={{
+      user, setUser, users, token, registerUser,
+      cases, addCase, updateCaseEvidence, loading, error,
+    }}>
       {children}
     </AppContext.Provider>
   );
@@ -136,3 +252,35 @@ export const useApp = () => {
   if (!context) throw new Error('useApp must be used within an AppProvider');
   return context;
 };
+
+// ─── SHAPE MAPPERS ────────────────────────────────────────────────────────────
+
+function mapLocalCaseToCase(row: any): Case {
+  return {
+    caseId:          row.caseId || row.case_id,
+    title:           row.title,
+    description:     row.description || '',
+    status:          normalizeCaseStatus(row.status),
+    officer:         row.officer || row.officer_name || row.current_custodian_name || row.custodian_name || '',
+    timestamp:       row.timestamp || row.created_at || row.incident_timestamp || new Date().toISOString(),
+    location:        row.location || '',
+    blockchainHash:  row.blockchainHash || row.blockchain_hash || 'pending',
+    evidence:        Array.isArray(row.evidence) ? row.evidence : [],
+  };
+}
+
+function mapCaseToLocal(c: any) {
+  return {
+    case_id:        c.caseId || c.case_id,
+    title:          c.title,
+    description:    c.description || '',
+    status:         normalizeCaseStatus(c.status),
+    location:       c.location || '',
+    officer_name:   c.officer || c.officer_name || c.current_custodian_name || c.custodian_name || null,
+    blockchain_hash: c.blockchainHash || c.blockchain_hash || 'pending',
+    sync_status:    c.sync_status || 'SYNCED',
+    version:        c.version || 1,
+    created_at:     c.timestamp || c.created_at || new Date().toISOString(),
+    updated_at:     c.updated_at || new Date().toISOString(),
+  };
+}

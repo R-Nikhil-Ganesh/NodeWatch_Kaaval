@@ -9,6 +9,7 @@ const { Gateway, Wallets } = require('fabric-network');
 const path     = require('path');
 const fs       = require('fs');
 const crypto   = require('crypto');
+const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const db       = require('./db/index');
 
@@ -121,6 +122,11 @@ async function connectToNetwork() {
   return { gateway, contract };
 }
 
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
+
+/** Strip password_hash before sending user to client */
+const sanitizeUser = ({ password_hash, ...rest }) => rest;
+
 // ─── AUTH MIDDLEWARE ──────────────────────────────────────────────────────────
 
 const requireAuth = (req, res, next) => {
@@ -134,6 +140,70 @@ const requireAuth = (req, res, next) => {
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
+
+// ─── ROUTES: AUTH ─────────────────────────────────────────────────────────────
+
+app.post(['/api/auth/login', '/auth/login'], async (req, res) => {
+  try {
+    const { username, email, password } = req.body || {};
+    const identifier = (email || username || '').toLowerCase().trim();
+    if (!identifier || !password) {
+      return res.status(400).json({ message: 'username/email and password required', error: 'username/email and password required' });
+    }
+
+    const { rows } = await db.query(
+      `SELECT * FROM users WHERE (LOWER(username) = $1 OR LOWER(email) = $1) AND is_active = TRUE`,
+      [identifier]
+    );
+    const user = rows[0];
+    if (!user) return res.status(401).json({ message: 'Invalid credentials', error: 'Invalid credentials' });
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) return res.status(401).json({ message: 'Invalid credentials', error: 'Invalid credentials' });
+
+    const token = jwt.sign(
+      { userId: user.user_id, role: user.role, org: user.org_msp },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    await logAudit({ userId: user.user_id, userRole: user.role, userOrg: user.org_msp, action: 'LOGIN', source: 'MOBILE' });
+
+    res.json({ user: sanitizeUser(user), token });
+  } catch (err) {
+    console.error('[Auth Error]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+app.post(['/api/auth/logout', '/auth/logout'], async (req, res) => {
+  try {
+    const { userId } = req.body || {};
+    if (userId) {
+      const { rows } = await db.query(`SELECT role, org_msp FROM users WHERE user_id = $1`, [userId]);
+      const u = rows[0];
+      if (u) await logAudit({ userId, userRole: u.role, userOrg: u.org_msp, action: 'LOGOUT', source: 'MOBILE' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[Logout Error]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// List users (for mobile selection/display)
+app.get(['/api/users', '/users'], async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT user_id, username, email, name, role, designation, badge_number, org_msp, profile_image_url, is_active, created_at
+       FROM users ORDER BY name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[Users Error]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── ROUTES: CASES ────────────────────────────────────────────────────────────
 
@@ -192,8 +262,18 @@ app.get('/cases/:id', async (req, res) => {
 // Create case
 app.post('/cases', async (req, res) => {
   try {
-    const { caseId, title, description, officer, status, location, timestamp,
-            userId, userRole, userOrg, blockchainHash } = req.body;
+    const caseId = req.body.caseId || req.body.case_id;
+    const title  = req.body.title;
+    const description = req.body.description || '';
+    const officer = req.body.officer || req.body.current_custodian_name || req.body.custodian_name || null;
+    const status = req.body.status || 'OPEN';
+    const location = req.body.location || 'Unspecified';
+    const timestamp = req.body.timestamp || req.body.incident_timestamp || req.body.created_at;
+    const userId = req.body.userId || req.body.created_by_user_id || null;
+    const userRole = req.body.userRole || null;
+    const userOrg = req.body.userOrg || null;
+    const blockchainHash = req.body.blockchainHash || req.body.blockchain_hash || 'pending';
+
     if (!caseId || !title) return res.status(400).json({ error: 'caseId and title are required' });
 
     const { rows: existing } = await db.query(`SELECT case_id FROM cases WHERE case_id = $1`, [caseId]);
@@ -207,12 +287,12 @@ app.post('/cases', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$10)
        RETURNING *`,
       [
-        caseId, title, description || '', status || 'OPEN',
-        location || 'Unspecified',
+        caseId, title, description, status,
+        location,
         timestamp ? new Date(timestamp) : null,
-        userId || null,
-        officer || null,
-        blockchainHash || 'pending',
+        userId,
+        officer,
+        blockchainHash,
         timestamp ? new Date(timestamp) : new Date(),
       ]
     );
@@ -515,12 +595,25 @@ app.post('/api/sync/push', async (req, res) => {
   for (const m of mutations) {
     try {
       if (m.entityType === 'CASE' && m.actionType === 'CREATE') {
-        const p = m.payload;
+        const p = m.payload || {};
+        const caseId = p.case_id || p.caseId || m.entityId;
+        const title = p.title || 'Untitled Case';
+        const description = p.description || '';
+        const status = p.status || 'OPEN';
+        const location = p.location || '';
+        const userId = p.created_by_user_id || p.userId || null;
+        const hash = p.blockchain_hash || p.blockchainHash || 'pending';
+
         await db.query(
           `INSERT INTO cases (case_id, title, description, status, location, created_by_user_id, blockchain_hash)
-           VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (case_id) DO NOTHING`,
-          [p.case_id, p.title, p.description || '', p.status || 'OPEN',
-           p.location || '', p.created_by_user_id || null, p.blockchain_hash || 'pending']
+           VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (case_id) DO UPDATE SET
+             title = EXCLUDED.title,
+             description = EXCLUDED.description,
+             status = EXCLUDED.status,
+             location = EXCLUDED.location,
+             blockchain_hash = EXCLUDED.blockchain_hash,
+             updated_at = NOW()`,
+          [caseId, title, description, status, location, userId, hash]
         );
       }
       if (m.entityType === 'AUDIT' && m.actionType === 'CREATE') {

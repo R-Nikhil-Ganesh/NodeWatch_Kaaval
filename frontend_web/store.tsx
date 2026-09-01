@@ -33,6 +33,31 @@ interface AppState {
 
 const StoreContext = createContext<AppState | undefined>(undefined);
 
+const mapDbUserToUser = (u: any): User => ({
+  id: u.user_id || u.id,
+  username: u.username || u.email,
+  email: u.email,
+  name: u.name,
+  role: (u.role || 'POLICE') as UserRole,
+  designation: u.designation || '',
+  badgeNumber: u.badge_number || u.badgeNumber || undefined,
+  profileImage: u.profile_image_url || u.profileImage || undefined,
+});
+
+const mapDbCaseToCase = (row: any): Case => {
+  const rawStatus = (row.status || 'OPEN').toString().toUpperCase().replace(/\s+/g, '_');
+  return {
+    caseId: row.case_id || row.caseId,
+    title: row.title,
+    description: row.description || '',
+    status: (Object.values(CaseStatus).includes(rawStatus as CaseStatus) ? rawStatus : CaseStatus.OPEN) as CaseStatus,
+    currentCustodian: row.custodian_name || row.current_custodian_name || row.current_custodian_id || row.currentCustodian || 'Unassigned',
+    createdBy: row.created_by_name || row.created_by_user_id || row.createdBy || 'Unknown',
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    assignedToForensics: row.forensics_name || row.assigned_forensics_id || row.assignedToForensics || undefined,
+  };
+};
+
 export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -71,20 +96,32 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadUsers = async () => {
+    const loadInitialData = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/users`);
-        if (!response.ok) return;
-        const payload = await response.json();
-        if (isMounted) {
-          setUsers(payload);
+        const [usersRes, casesRes] = await Promise.allSettled([
+          fetch(`${API_BASE}/api/users`),
+          fetch(`${API_BASE}/api/cases`),
+        ]);
+
+        if (usersRes.status === 'fulfilled' && usersRes.value.ok) {
+          const payload = await usersRes.value.json();
+          if (isMounted && Array.isArray(payload)) {
+            setUsers(payload.map(mapDbUserToUser));
+          }
+        }
+
+        if (casesRes.status === 'fulfilled' && casesRes.value.ok) {
+          const payload = await casesRes.value.json();
+          if (isMounted && Array.isArray(payload) && payload.length > 0) {
+            setCases(payload.map(mapDbCaseToCase));
+          }
         }
       } catch (error) {
-        console.error('Failed to load users', error);
+        console.error('Failed to load initial data from backend_web', error);
       }
     };
 
-    loadUsers();
+    loadInitialData();
 
     return () => {
       isMounted = false;
@@ -161,7 +198,11 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const addCase = (newCase: Case) => {
-    setCases(prev => [newCase, ...prev]);
+    const rawStatus = (newCase.status || 'OPEN').toString().toUpperCase().replace(/\s+/g, '_');
+    const normalizedStatus = (Object.values(CaseStatus).includes(rawStatus as CaseStatus) ? rawStatus : CaseStatus.OPEN) as CaseStatus;
+    const caseToSave = { ...newCase, status: normalizedStatus };
+
+    setCases(prev => [caseToSave, ...prev]);
     if (currentUser) {
         addLog({
             caseId: newCase.caseId,
@@ -171,6 +212,29 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
             details: `Created case ${newCase.caseId}`
         });
     }
+
+    fetch(`${API_BASE}/api/cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        caseId: caseToSave.caseId,
+        title: caseToSave.title,
+        description: caseToSave.description,
+        status: normalizedStatus,
+        currentCustodian: caseToSave.currentCustodian,
+        createdBy: caseToSave.createdBy || currentUser?.id,
+        assignedToForensics: caseToSave.assignedToForensics,
+        actorId: currentUser?.id,
+        actorRole: currentUser?.role,
+      }),
+    }).then(async (res) => {
+      if (res.ok) {
+        const saved = await res.json();
+        setCases(prev => prev.map(c => c.caseId === newCase.caseId ? mapDbCaseToCase(saved) : c));
+      }
+    }).catch(err => {
+      console.error('Failed to create case in backend_web', err);
+    });
   };
 
   const addEvidence = (newEvidence: Evidence) => {
@@ -208,16 +272,31 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const updateCaseStatus = (caseId: string, status: CaseStatus) => {
-    setCases(prev => prev.map(c => c.caseId === caseId ? { ...c, status } : c));
+    const rawStatus = (status || 'OPEN').toString().toUpperCase().replace(/\s+/g, '_');
+    const normalizedStatus = (Object.values(CaseStatus).includes(rawStatus as CaseStatus) ? rawStatus : CaseStatus.OPEN) as CaseStatus;
+
+    setCases(prev => prev.map(c => c.caseId === caseId ? { ...c, status: normalizedStatus } : c));
     if (currentUser) {
         addLog({
             caseId,
             accessedBy: currentUser.id,
             role: currentUser.role,
             action: 'APPROVE',
-            details: `Status changed to ${status}`
+            details: `Status changed to ${normalizedStatus}`
         });
     }
+
+    fetch(`${API_BASE}/api/cases/${caseId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: normalizedStatus,
+        actorId: currentUser?.id,
+        actorRole: currentUser?.role,
+      }),
+    }).catch(err => {
+      console.error('Failed to update case status in backend_web', err);
+    });
   };
 
   const verifyEvidence = (evidenceId: string) => {
@@ -319,6 +398,20 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
               details: `Case custody transferred to ${custodianName} (${newCustodianRole}). ${notes || ''}`
           });
       }
+
+      fetch(`${API_BASE}/api/cases/${caseId}/transfer-custody`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          newCustodianId,
+          newCustodianRole,
+          notes,
+          actorId: currentUser?.id,
+          actorRole: currentUser?.role,
+        }),
+      }).catch(err => {
+        console.error('Failed to transfer case custody in backend_web', err);
+      });
   };
 
   const issueSection63Certificate = (evidenceId: string, certificateRef: string) => {

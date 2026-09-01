@@ -48,7 +48,21 @@ export const Login = () => {
 
             const payload = await response.json();
             if (payload?.user) {
-                setTempUser(payload.user);
+                if (payload.token) {
+                    localStorage.setItem('kaaval_web_token', payload.token);
+                }
+                const u = payload.user;
+                const mappedUser: User = {
+                    id: u.user_id || u.id,
+                    username: u.username || u.email,
+                    email: u.email,
+                    name: u.name,
+                    role: u.role as UserRole,
+                    designation: u.designation || '',
+                    badgeNumber: u.badge_number || u.badgeNumber || undefined,
+                    profileImage: u.profile_image_url || u.profileImage || undefined,
+                };
+                setTempUser(mappedUser);
                 setStage('PIN');
                 return;
             }

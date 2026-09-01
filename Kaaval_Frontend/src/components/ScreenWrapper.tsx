@@ -1,4 +1,3 @@
-// src/components/ScreenWrapper.tsx
 import React from 'react';
 import { 
   KeyboardAvoidingView, 
@@ -7,13 +6,14 @@ import {
   StatusBar, 
   StyleSheet, 
   View, 
+  StyleProp,
   ViewStyle 
 } from 'react-native';
 import { COLORS } from '../constants/theme';
 
 interface Props {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function ScreenWrapper({ children, style }: Props) {
@@ -45,13 +45,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    ...Platform.select({
-      web: {
-        minHeight: '100vh',
-        width: '100%',
-      },
-      default: {},
-    }),
+    width: '100%',
+    minHeight: '100%',
   },
   keyboardAvoid: {
     flex: 1,
@@ -61,12 +56,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     backgroundColor: COLORS.background,
-    ...Platform.select({
-      web: {
-        minHeight: '100vh',
-        width: '100%',
-      },
-      default: {},
-    }),
+    width: '100%',
+    minHeight: '100%',
   },
 });

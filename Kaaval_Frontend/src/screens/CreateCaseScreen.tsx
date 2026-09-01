@@ -19,14 +19,14 @@ export default function CreateCaseScreen({ navigation }: { navigation: CreateCas
     }
 
     const newCase: Case = {
-      caseId: `CASE-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000)}`,
+      caseId: `CASE-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`,
       title,
       location,
-      officer: user?.name || 'Unknown',
-      status: 'Open',
+      officer: user?.name || 'Unknown Officer',
+      status: 'OPEN',
       evidence: [],
-      timestamp: '', // Will be set in context
-      blockchainHash: '' // Will be set in context
+      timestamp: new Date().toISOString(),
+      blockchainHash: 'pending'
     };
 
     try {

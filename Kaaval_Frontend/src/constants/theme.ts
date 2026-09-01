@@ -25,3 +25,29 @@ export const SIZES = {
   h3: 18,
   body: 14,
 };
+
+export const Colors = {
+  light: {
+    text: COLORS.text,
+    background: COLORS.background,
+    tint: COLORS.primary,
+    icon: COLORS.textDim,
+    tabIconDefault: COLORS.textDim,
+    tabIconSelected: COLORS.primary,
+  },
+  dark: {
+    text: COLORS.text,
+    background: COLORS.background,
+    tint: COLORS.primary,
+    icon: COLORS.textDim,
+    tabIconDefault: COLORS.textDim,
+    tabIconSelected: COLORS.primary,
+  },
+};
+
+export const Fonts = {
+  regular: 'System',
+  bold: 'System',
+  rounded: 'System',
+  mono: 'Courier',
+};
