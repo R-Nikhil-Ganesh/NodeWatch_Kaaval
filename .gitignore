@@ -23,6 +23,10 @@ coverage/
 ### Environment & local config
 .env
 .env.*
+.env.local
+*.env
+!*.env.example
+!.env.example
 .eslintcache
 
 ### Logs & runtime artifacts

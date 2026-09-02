@@ -53,6 +53,13 @@ CREATE TYPE document_type AS ENUM (
   'LAB_REPORT'
 );
 
+CREATE TYPE outbox_status AS ENUM (
+  'PENDING',
+  'PROCESSING',
+  'CONFIRMED',
+  'FAILED'
+);
+
 -- ----- USERS -----
 -- Merged from backend_web/src/data.js and Kaaval_Frontend/src/data/mockData.ts.
 -- Passwords stored as bcrypt hashes only — never plaintext.
@@ -260,3 +267,23 @@ CREATE INDEX idx_audit_logs_timestamp   ON audit_logs(timestamp DESC);
 CREATE INDEX idx_audit_logs_case        ON audit_logs(case_id);
 CREATE INDEX idx_audit_logs_evidence    ON audit_logs(evidence_id);
 CREATE INDEX idx_audit_logs_user        ON audit_logs(user_id);
+
+-- ----- BLOCKCHAIN TRANSACTIONAL OUTBOX -----
+-- Guarantees reliable, asynchronous delivery of evidence lifecycle events to Hyperledger Fabric.
+
+CREATE TABLE blockchain_outbox (
+  outbox_id        UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type       VARCHAR(50)    NOT NULL, -- 'CREATE_EVIDENCE', 'TRANSFER_INITIATE', 'TRANSFER_ACCEPT', 'FORENSIC_VERIFY', 'INTEGRITY_FLAG', 'COURT_SUBMIT'
+  entity_id        VARCHAR(100)   NOT NULL, -- evidence_id or case_id
+  case_id          VARCHAR(50),
+  payload          JSONB          NOT NULL,
+  status           outbox_status  NOT NULL DEFAULT 'PENDING',
+  attempt_count    INTEGER        NOT NULL DEFAULT 0,
+  last_error       TEXT,
+  blockchain_tx_id VARCHAR(128),
+  created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+  processed_at     TIMESTAMPTZ
+);
+
+CREATE INDEX idx_outbox_status_created ON blockchain_outbox(status, created_at ASC);
+CREATE INDEX idx_outbox_entity         ON blockchain_outbox(entity_id);

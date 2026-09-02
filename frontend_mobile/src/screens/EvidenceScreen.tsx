@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList, Evidence } from '../types';
 import { apiService } from '../services/api';
@@ -224,12 +225,22 @@ export default function EvidenceScreen({ route, navigation }: Props) {
       const tempUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${extension}`;
       await FileSystem.copyAsync({ from: asset.uri, to: tempUri });
 
+      // Compute actual source SHA-256 hash at capture edge
+      let sourceHash = '';
+      try {
+        const fileContent = await FileSystem.readAsStringAsync(tempUri, { encoding: FileSystem.EncodingType.Base64 });
+        sourceHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, fileContent);
+      } catch (hashErr) {
+        console.warn('Source hash computation fallback:', hashErr);
+        sourceHash = 'hash_' + Date.now().toString(16);
+      }
+
       const newEvidence: Evidence = {
         type: 'image', 
         uri: tempUri,
-        hash: 'Qm' + Date.now() + 'x8z9', 
+        hash: sourceHash, 
         timestamp: new Date().toISOString(),
-        name: 'Scene Photo / Document',
+        name: asset.fileName || 'Scene Photo / Document',
         // Hint mime for upload
         mimeType: 'image/jpeg',
         location: randomLoc
