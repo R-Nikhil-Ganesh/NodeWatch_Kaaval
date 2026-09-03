@@ -70,7 +70,7 @@ Expected output:
 Get-Content backend/src/db/schema.sql | docker exec -i kaaval-postgres psql -U postgres -d kaaval_db
 
 # Seed system authentication accounts
-$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5433/kaaval_db"; node backend/src/db/seed.cjs
+$env:DATABASE_URL="postgresql://postgres:postgres@localhost:5433/kaaval_db"; node backend/scripts/seed.cjs
 ```
 
 ---

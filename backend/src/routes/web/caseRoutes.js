@@ -103,8 +103,22 @@ router.patch('/:caseId/status', async (req, res) => {
   try {
     const { caseId } = req.params;
     const { status, actorId, actorRole } = req.body || {};
+    // Onboard the case into the court/legal domain the first time it's
+    // submitted to court. legalCaseRoutes.js only surfaces cases where
+    // court_stage IS NOT NULL, so without this the legal (CMS) frontend
+    // would never see cases coming from the web/mobile side even though
+    // they live in the same `cases` row — it just never gets a stage.
+    // Only stamps it once (WHEN court_stage IS NULL) so it never clobbers
+    // stage progress the court side may have already recorded.
     const { rows } = await query(
-      `UPDATE cases SET status = $1::case_status, updated_at = NOW(), version = version + 1
+      `UPDATE cases SET
+         status = $1::case_status,
+         court_stage = CASE
+           WHEN $1::case_status = 'SUBMITTED_TO_COURT'::case_status AND court_stage IS NULL
+           THEN 'CHARGESHEET_FILED'
+           ELSE court_stage
+         END,
+         updated_at = NOW(), version = version + 1
        WHERE case_id = $2 AND is_deleted = FALSE
        RETURNING *, case_id AS "caseId"`,
       [status, caseId]

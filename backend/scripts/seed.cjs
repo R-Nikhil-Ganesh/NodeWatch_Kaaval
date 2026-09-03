@@ -1,17 +1,25 @@
 /**
- * backend/src/db/seed.cjs
- * Run with: npm run db:seed
+ * backend/scripts/seed.cjs
+ *
+ * Single master seed script for the unified Kaaval database — this is the
+ * only place mock data & mock users should be added. Run with:
+ *   npm run db:seed        (from backend/, applies schema.sql + legal_extension.sql first)
+ *   node scripts/seed.cjs  (schema/migrations must already be applied)
  *
  * Seeds:
- *  - Base unified users/cases/evidence (shared with mobile + web apps)
- *  - Legal-domain users, cases (with extended court metadata), hearings,
- *    parties, case files (documents) and evidence, plus historical audit logs.
+ *  - Base unified users (ADMIN/POLICE/FORENSICS/LEGAL) — shared identically
+ *    across the mobile, web and legal frontends since they all authenticate
+ *    against the same `users` table.
+ *  - Base cases/evidence for the mobile + web (police) domain.
+ *  - Legal-domain cases (extended court metadata), hearings, parties,
+ *    case files (documents) and evidence, plus historical audit logs, so
+ *    the standalone Legal CMS frontend has data to display out of the box.
  *
  * Idempotent — safe to re-run (INSERT ... ON CONFLICT DO NOTHING).
  */
 'use strict';
 
-require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 
@@ -164,10 +172,6 @@ function buildHearings(c) {
     next_hearing_date: isDisposed ? null : c.upcoming_hearing_date,
     prosecutor_present: true, defense_counsel_present: true, accused_present: true,
   });
-  if (!isDisposed && c.upcoming_hearing_date) {
-    // Represent the already-scheduled upcoming hearing as a pending row is unnecessary —
-    // the case's own upcoming_hearing_date column drives that display.
-  }
   return rows;
 }
 

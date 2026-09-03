@@ -9,7 +9,7 @@
     "dev": "node --watch src/server.js",
     "test": "node test_e2e.js",
     "db:migrate": "node src/db/migrate.cjs",
-    "db:seed": "node src/db/migrate.cjs && node src/db/seed.cjs"
+    "db:seed": "node src/db/migrate.cjs && node scripts/seed.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
