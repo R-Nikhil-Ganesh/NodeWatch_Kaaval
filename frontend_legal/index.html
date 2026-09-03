@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Court Management System | Government of Tamil Nadu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif:wght@600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              navy: {
+                50: '#EEF2F7',
+                100: '#DCE6F0',
+                200: '#B9CCE0',
+                300: '#8FAFCC',
+                400: '#5C89AF',
+                500: '#2F6494',
+                600: '#1B4B78',
+                700: '#123B6B',
+                800: '#0E2F58',
+                900: '#0B2545',
+                950: '#071A32'
+              },
+              saffron: {
+                50: '#FDF1E6',
+                100: '#FBE0C4',
+                200: '#F6C088',
+                300: '#F1A055',
+                400: '#EC8A2E',
+                500: '#E8720C',
+                600: '#C25F09',
+                700: '#9C4C08',
+                800: '#753906',
+                900: '#4F2704'
+              },
+              ashoka: {
+                50: '#E7F3ED',
+                100: '#C7E4D6',
+                500: '#1D6F42',
+                600: '#175A35',
+                700: '#124529'
+              },
+              paper: {
+                50: '#F7F8FA',
+                100: '#EFF1F5'
+              },
+              ink: {
+                900: '#10161F',
+                700: '#333B46',
+                500: '#5B6672',
+                300: '#98A1AC'
+              },
+              line: {
+                200: '#E4E8EE',
+                300: '#D2D8E0'
+              },
+              status: {
+                pending: '#C77B00',
+                pendingBg: '#FBF1E2',
+                resolved: '#1D6F42',
+                resolvedBg: '#E7F3ED',
+                urgent: '#B3261E',
+                urgentBg: '#FBEAE9'
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'Noto Sans', 'system-ui', 'sans-serif'],
+              serif: ['"Noto Serif"', 'Georgia', 'serif']
+            },
+            boxShadow: {
+              card: '0 1px 2px rgba(11, 37, 69, 0.06), 0 1px 1px rgba(11, 37, 69, 0.04)'
+            },
+            borderRadius: {
+              sm: '6px',
+              md: '8px'
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="bg-paper-50 text-ink-900 font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
