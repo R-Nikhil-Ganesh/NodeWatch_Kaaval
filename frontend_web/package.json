@@ -1,5 +1,5 @@
 {
-  "name": "chainguard:-digital-evidence-custody",
+  "name": "nodewatch-digital-evidence-custody",
   "private": true,
   "version": "0.0.0",
   "type": "module",

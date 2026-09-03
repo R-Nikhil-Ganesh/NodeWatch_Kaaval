@@ -274,7 +274,7 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
     <ScreenWrapper>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.headerContainer}>
-          <Text style={styles.title}>ChainGuard</Text>
+          <Text style={styles.title}>NodeWatch</Text>
           <Text style={styles.subtitle}>Tamper-Proof Digital Evidence</Text>
         </View>
 

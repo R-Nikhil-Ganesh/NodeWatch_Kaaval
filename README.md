@@ -79,10 +79,17 @@ npm install
 npm start
 ```
 
-### 5. Run Automated End-to-End Verification Suite
+### 5. Start Legal / Judiciary Portal (Port 5174)
+```powershell
+cd frontend_legal
+npm install
+npm run dev
+```
+
+### 6. Run Automated End-to-End Verification Suite
 ```powershell
 cd backend
-node test_e2e.js
+npm test
 ```
 
 ---

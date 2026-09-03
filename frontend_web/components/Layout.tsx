@@ -36,7 +36,7 @@ export const Layout = ({ children, setView, onOpenProfile }: { children?: React.
         <div className="h-16 flex items-center px-6 border-b border-gov-800">
           <Shield className="w-8 h-8 text-blue-400 mr-3" />
           <div>
-            <h1 className="font-bold text-lg tracking-tight">ChainGuard</h1>
+            <h1 className="font-bold text-lg tracking-tight">NodeWatch</h1>
             <p className="text-xs text-gov-400">Gov. Evidence System</p>
           </div>
         </div>

@@ -1,10 +1,10 @@
-# ChainGuard System Architecture
+# NodeWatch System Architecture
 
 ## 🏗️ Complete System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        CHAINUARD APPLICATION                         │
+│                        NODEWATCH APPLICATION                         │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────┐

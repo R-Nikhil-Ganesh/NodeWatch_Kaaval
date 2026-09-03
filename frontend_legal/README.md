@@ -1,6 +1,6 @@
 # Court Management System
 
-A standalone web app for the **Legal / Court side** of the ChainGuard (Kaaval) system — Judges, Public Prosecutors, Defense Counsel and Registrars. Split out from the `LEGAL` role that previously lived inside `frontend_web`, and rebuilt around the flow defined in the project's `Flow definition.pdf` / `Flow of new app.pdf`.
+A standalone web app for the **Legal / Court side** of the NodeWatch (Kaaval) system — Judges, Public Prosecutors, Defense Counsel and Registrars. Split out from the `LEGAL` role that previously lived inside `frontend_web`, and rebuilt around the flow defined in the project's `Flow definition.pdf` / `Flow of new app.pdf`.
 
 This is a **UI-only v1**: every case, hearing, file, evidence item and audit log entry is mock data in [`src/data/mockData.ts`](src/data/mockData.ts). No backend or Hyperledger Fabric calls are wired up yet — that comes in a later pass, reusing the same domain types in [`src/types.ts`](src/types.ts).
 

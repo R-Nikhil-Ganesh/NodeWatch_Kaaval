@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "ChainGuardMobile",
-    "slug": "ChainGuardMobile",
+    "name": "NodeWatchMobile",
+    "slug": "NodeWatchMobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "chainguardmobile",
+    "scheme": "nodewatchmobile",
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "newArchEnabled": true,

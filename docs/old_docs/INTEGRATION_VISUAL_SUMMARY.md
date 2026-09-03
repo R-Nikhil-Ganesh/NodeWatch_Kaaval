@@ -423,7 +423,7 @@ AFTER INTEGRATION:
 
 ## ✅ Integration Complete!
 
-Your ChainGuard application now has a complete, production-ready integration between:
+Your NodeWatch application now has a complete, production-ready integration between:
 - **Frontend**: React Native/Expo mobile app
 - **Backend**: Node.js/Express server
 - **Blockchain**: Hyperledger Fabric immutable ledger

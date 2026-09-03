@@ -1,4 +1,4 @@
-# 📚 ChainGuard Integration - Documentation Index
+# 📚 NodeWatch Integration - Documentation Index
 
 ## 🎯 Start Here
 

@@ -113,7 +113,7 @@ export default function EvidenceScreen({ route, navigation }: Props) {
             </table>
   
             <div class="footer">
-              <p>This document is computer-generated from the ChainGuard Immutable Ledger.</p>
+              <p>This document is computer-generated from the NodeWatch Immutable Ledger.</p>
               <p>Generated on: ${new Date().toLocaleString()}</p>
             </div>
           </body>

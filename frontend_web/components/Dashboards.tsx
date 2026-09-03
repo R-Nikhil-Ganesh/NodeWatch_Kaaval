@@ -96,7 +96,7 @@ export const SystemLogsView = () => {
                             <td className="px-6 py-4 text-xs text-gov-500 dark:text-gov-400">{new Date(log.timestamp).toLocaleString()}</td>
                             <td className="px-6 py-4 text-sm font-medium text-gov-900 dark:text-gov-100">{log.accessedBy}</td>
                             <td className="px-6 py-4 text-xs"><span className="bg-gov-200 dark:bg-gov-700 px-2 py-1 rounded text-gov-700 dark:text-gov-200">{log.role}</span></td>
-                            <td className="px-6 py-4 text-sm font-bold text-gov-800 dark:text-gov-100">{log.action}</td>
+                            <td className="px-6 py-4 text-sm font-bold text-gov-800 dark:text-gov-100">{log.action.replace(/_/g, ' ')}</td>
                             <td className="px-6 py-4 text-xs font-mono text-gov-500 dark:text-gov-400">{log.evidenceId || log.caseId || '-'}</td>
                             <td className="px-6 py-4 text-sm text-gov-600 dark:text-gov-300">{log.details}</td>
                         </tr>
@@ -301,11 +301,14 @@ export const LegalDashboard = ({ onNavigate }: DashboardProps) => {
 // ADMIN DASHBOARD
 // ----------------------------------------------------------------------
 export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
-    const { cases, evidence, logs, addCase, currentUser } = useStore();
-    
+    const { cases, evidence, logs, users, addCase, currentUser } = useStore();
+
     // Create Case Logic (Moved from Police)
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [newCaseData, setNewCaseData] = useState({ title: '', description: '' });
+    const [newCaseData, setNewCaseData] = useState({ title: '', description: '', officerId: '', forensicsId: '' });
+
+    const policeUsers = users.filter(u => u.role === UserRole.POLICE);
+    const forensicsUsers = users.filter(u => u.role === UserRole.FORENSICS);
 
     const handleCreateCase = () => {
         if (!newCaseData.title || !currentUser) return;
@@ -314,11 +317,13 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
             title: newCaseData.title,
             description: newCaseData.description,
             status: CaseStatus.OPEN,
+            currentCustodian: newCaseData.officerId || currentUser.id,
             createdBy: currentUser.id,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            assignedToForensics: newCaseData.forensicsId || undefined,
         });
         setIsCreateModalOpen(false);
-        setNewCaseData({ title: '', description: '' });
+        setNewCaseData({ title: '', description: '', officerId: '', forensicsId: '' });
     };
 
     const totalCases = cases.length;
@@ -351,12 +356,38 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
                         />
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gov-700 mb-1 dark:text-gov-300">Description</label>
-                            <textarea 
+                            <textarea
                                 className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white dark:focus:ring-blue-500"
                                 rows={3}
                                 value={newCaseData.description}
                                 onChange={e => setNewCaseData({...newCaseData, description: e.target.value})}
                             />
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gov-700 mb-1 dark:text-gov-300">Assign Officer (Custodian)</label>
+                            <select
+                                className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                                value={newCaseData.officerId}
+                                onChange={e => setNewCaseData({...newCaseData, officerId: e.target.value})}
+                            >
+                                <option value="">-- Unassigned (defaults to me) --</option>
+                                {policeUsers.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gov-700 mb-1 dark:text-gov-300">Assign Forensics Analyst</label>
+                            <select
+                                className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                                value={newCaseData.forensicsId}
+                                onChange={e => setNewCaseData({...newCaseData, forensicsId: e.target.value})}
+                            >
+                                <option value="">-- Unassigned --</option>
+                                {forensicsUsers.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="flex justify-end gap-2">
                             <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
@@ -406,7 +437,7 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
                                         <td className="px-3 py-2 text-xs font-medium text-gov-900 dark:text-gov-100">{log.accessedBy}</td>
                                         <td className="px-3 py-2 text-xs">
                                             <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium">
-                                                {log.action}
+                                                {log.action.replace(/_/g, ' ')}
                                             </span>
                                         </td>
                                         <td className="px-3 py-2 text-xs text-gov-600 dark:text-gov-300 truncate max-w-xs">{log.details}</td>

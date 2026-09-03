@@ -1,5 +1,5 @@
 @echo off
-REM Quick Start Script for Kaaval / ChainGuard
+REM Quick Start Script for Kaaval / NodeWatch
 REM This script starts the unified backend and both frontends
 
 echo ========================================
@@ -36,12 +36,19 @@ if exist "frontend_mobile" (
     start cmd /k "cd Kaaval_Frontend && npm start"
 )
 
+REM 4. Start Legal Portal (Vite)
+if exist "frontend_legal" (
+    echo Starting Legal Portal (Vite)...
+    start cmd /k "cd frontend_legal && npm run dev"
+)
+
 echo.
 echo ========================================
 echo All services starting:
 echo.
-echo Unified Backend:  http://localhost:4000 (Web + Mobile APIs)
+echo Unified Backend:  http://localhost:4000 (Web + Mobile + Legal APIs)
 echo Web Frontend:     http://localhost:5173
+echo Legal Portal:     http://localhost:5174 (check terminal for actual port)
 echo Mobile App:       Follow Expo CLI instructions
 echo.
 echo Keep all terminal windows open.

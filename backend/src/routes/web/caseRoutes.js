@@ -129,7 +129,23 @@ router.patch('/:caseId/status', async (req, res) => {
 router.post('/:caseId/transfer-custody', async (req, res) => {
   try {
     const { caseId } = req.params;
-    const { newCustodianId, newCustodianRole, notes, actorId, actorRole } = req.body || {};
+    const { newCustodianId, newCustodianRole, notes, actorId, actorRole, overrideReason } = req.body || {};
+
+    const { rows: caseRows } = await query(
+      `SELECT current_custodian_id FROM cases WHERE case_id = $1 AND is_deleted = FALSE`,
+      [caseId]
+    );
+    if (!caseRows.length) return res.status(404).json({ message: 'Case not found' });
+
+    // Server-side enforcement: only the current custodian (POLICE) may transfer,
+    // or an ADMIN performing an explicit, reasoned override.
+    const isHoldingCustodian = actorRole === 'POLICE' && !!actorId && caseRows[0].current_custodian_id === actorId;
+    const isAdminOverride = actorRole === 'ADMIN' && !!overrideReason;
+    if (!isHoldingCustodian && !isAdminOverride) {
+      return res.status(403).json({
+        message: 'Only the officer currently holding custody may transfer it, or an ADMIN with an override reason.',
+      });
+    }
 
     let custodianName = newCustodianId;
     const { rows: uRows } = await query(`SELECT name FROM users WHERE user_id = $1`, [newCustodianId]);
@@ -147,9 +163,9 @@ router.post('/:caseId/transfer-custody', async (req, res) => {
 
       await dbClient.query(
         `INSERT INTO case_custody_transfers
-           (case_id, from_user_id, to_user_id, to_custodian_name, to_role, notes)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [caseId, actorId || null, newCustodianId, custodianName, newCustodianRole || null, notes || null]
+           (case_id, from_user_id, to_user_id, to_custodian_name, to_role, notes, override_reason)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [caseId, actorId || null, newCustodianId, custodianName, newCustodianRole || null, notes || null, isAdminOverride ? overrideReason : null]
       );
 
       // Also enqueue case custody event into Blockchain Outbox
@@ -185,10 +201,70 @@ router.post('/:caseId/transfer-custody', async (req, res) => {
       userRole: actorRole,
       action: 'TRANSFER_CUSTODY',
       source: 'WEB',
-      details: { officer: custodianName, title: notes || '' },
+      details: {
+        officer: custodianName,
+        title: isAdminOverride ? `${notes || ''} [ADMIN OVERRIDE: ${overrideReason}]` : (notes || ''),
+      },
     });
 
     const { rows } = await query(`SELECT *, case_id AS "caseId" FROM cases WHERE case_id = $1`, [caseId]);
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.patch('/:caseId/assignment', async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { assigned_forensics_id, current_custodian_id, actorId, actorRole } = req.body || {};
+
+    if (!assigned_forensics_id && !current_custodian_id) {
+      return res.status(400).json({ message: 'Provide assigned_forensics_id and/or current_custodian_id' });
+    }
+
+    let forensicsName = null;
+    if (assigned_forensics_id) {
+      const { rows } = await query('SELECT name, role FROM users WHERE user_id = $1', [assigned_forensics_id]);
+      if (!rows.length) return res.status(400).json({ message: 'assigned_forensics_id does not reference an existing user' });
+      if (rows[0].role !== 'FORENSICS') return res.status(400).json({ message: 'assigned_forensics_id must reference a user with role FORENSICS' });
+      forensicsName = rows[0].name;
+    }
+
+    let custodianName = null;
+    if (current_custodian_id) {
+      const { rows } = await query('SELECT name, role FROM users WHERE user_id = $1', [current_custodian_id]);
+      if (!rows.length) return res.status(400).json({ message: 'current_custodian_id does not reference an existing user' });
+      if (rows[0].role !== 'POLICE') return res.status(400).json({ message: 'current_custodian_id must reference a user with role POLICE' });
+      custodianName = rows[0].name;
+    }
+
+    const { rows } = await query(
+      `UPDATE cases SET
+         assigned_forensics_id = COALESCE($1, assigned_forensics_id),
+         current_custodian_id = COALESCE($2, current_custodian_id),
+         current_custodian_name = COALESCE($3, current_custodian_name),
+         updated_at = NOW(), version = version + 1
+       WHERE case_id = $4 AND is_deleted = FALSE
+       RETURNING *, case_id AS "caseId"`,
+      [assigned_forensics_id || null, current_custodian_id || null, custodianName, caseId]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'Case not found' });
+
+    await auditService.log({
+      caseId,
+      userId: actorId,
+      userRole: actorRole,
+      action: 'REASSIGN_CASE',
+      source: 'WEB',
+      details: {
+        title: [
+          assigned_forensics_id ? `Forensics lead → ${forensicsName || assigned_forensics_id}` : null,
+          current_custodian_id ? `Custodian → ${custodianName || current_custodian_id}` : null,
+        ].filter(Boolean).join('; '),
+      },
+    });
+
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });

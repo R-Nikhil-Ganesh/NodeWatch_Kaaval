@@ -11,6 +11,9 @@ import { config } from '../../config/index.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB limit
 
+// Must match the `evidence_type` enum in schema.sql exactly.
+const VALID_EVIDENCE_TYPES = new Set(['IMAGE', 'VIDEO', 'AUDIO', 'PDF', 'WORD', 'PHYSICAL', 'DISK_IMAGE']);
+
 // Ingest evidence from mobile field device
 router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
   try {
@@ -19,16 +22,38 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
     if (!caseRows.length) return res.status(404).json({ error: 'Case not found' });
     if (!req.file) return res.status(400).json({ error: 'File payload is required' });
 
+    // Resolve the uploader server-side rather than trusting client-supplied
+    // role/org strings — the mobile client currently sends userOrg:'POLICE',
+    // which matches neither MSP-naming convention actually used downstream
+    // (Org1MSP in this file's own transfer flow, PoliceMSP in the web routes),
+    // so `owner_msp` written straight from the client would be wrong for every
+    // single mobile-originated evidence item. A stale/invalid cached session
+    // (userId not in this DB) also fails clearly here instead of crashing on
+    // the evidence_uploaded_by_fkey constraint after the file has already
+    // been written to MinIO.
+    let userRole = 'POLICE';
+    let userOrg = config.fabric.orgs.police.mspId;
+    if (req.body.userId) {
+      const { rows: userRows } = await query('SELECT role, org_msp FROM users WHERE user_id = $1', [req.body.userId]);
+      if (!userRows.length) {
+        return res.status(401).json({ error: 'Unrecognized user session — please sign out and log in again.' });
+      }
+      userRole = userRows[0].role;
+      userOrg = userRows[0].org_msp || userOrg;
+    }
+
+    const fileType = (req.body.type || 'IMAGE').toUpperCase();
+    if (!VALID_EVIDENCE_TYPES.has(fileType)) {
+      return res.status(400).json({ error: `Invalid evidence type "${req.body.type}" — must be one of ${[...VALID_EVIDENCE_TYPES].join(', ')}` });
+    }
+
     const evidenceId = req.body.evidenceId || `ev_${Date.now()}`;
     const originalName = req.body.name || req.file.originalname || `evidence_${Date.now()}.jpg`;
     const ext = path.extname(originalName) || '.jpg';
     const mimeType = req.file.mimetype || 'image/jpeg';
-    const fileType = (req.body.type || 'IMAGE').toUpperCase();
     const clientSourceHash = req.body.sourceHash || req.body.source_hash || req.body.hash;
     const location = req.body.location || 'Crime Scene';
     const submittedBy = req.body.submittedBy || req.body.userId || 'Field Officer';
-    const userRole = req.body.userRole || 'POLICE';
-    const userOrg = req.body.userOrg || 'PoliceMSP';
 
     // 1. Calculate server-side SHA-256 stream hash
     const serverFileHash = hashingService.computeBufferHash(req.file.buffer);

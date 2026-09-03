@@ -17,12 +17,16 @@ export const ChainOfCustodyView = () => {
         }
     }, [cases, selectedCaseId]);
 
-    // Helper to find user details
-    const getUserDetails = (userId: string) => {
-        const user = users.find(u => u.id === userId);
+    // Helper to find user details.
+    // `log.accessedBy` is populated from the backend as the actor's display name
+    // (falling back to raw user ID only if the name is unavailable), so match on
+    // either — matching on ID alone here always missed and silently fell through
+    // to the "unknown" placeholder even for perfectly resolvable users.
+    const getUserDetails = (accessedBy: string) => {
+        const user = users.find(u => u.id === accessedBy || u.name === accessedBy);
         if (user) return user;
-        // Fallback if ID not found (e.g. system action or deleted user)
-        return { name: userId, email: 'unknown@system.local', role: 'UNKNOWN' };
+        // Fallback for a genuinely unresolvable actor (system action or deleted user)
+        return { name: accessedBy || 'Unknown', email: 'System / Unresolved User', role: 'UNKNOWN' };
     };
 
     // Filter logs for the specific case AND search query
@@ -162,7 +166,7 @@ export const ChainOfCustodyView = () => {
                                         <RoleBadge role={log.role} />
                                     </td>
                                     <td className="px-6 py-4 text-sm font-bold text-gov-800 dark:text-gov-100">
-                                        {log.action}
+                                        {log.action.replace(/_/g, ' ')}
                                     </td>
                                     <td className="px-6 py-4 text-xs font-mono text-gov-500 dark:text-gov-400">
                                         {log.evidenceId ? (

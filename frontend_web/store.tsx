@@ -27,8 +27,10 @@ interface AppState {
   approveEvidence: (evidenceId: string) => void;
   toggleIntegrityHack: (evidenceId: string) => void;
   updateEvidenceVisibility: (evidenceId: string, visibility: EvidenceVisibility) => void;
-  transferCaseCustody: (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string) => void;
+  transferCaseCustody: (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string, overrideReason?: string) => void;
+  reassignCase: (caseId: string, updates: { assignedForensicsId?: string; currentCustodianId?: string }) => void;
   issueSection63Certificate: (evidenceId: string, certificateRef: string) => void;
+  refreshData: () => Promise<void>;
 }
 
 const StoreContext = createContext<AppState | undefined>(undefined);
@@ -209,14 +211,8 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   useEffect(() => {
+    // Load initial state once on mount
     loadData();
-
-    // Auto-sync polling every 5 seconds so live changes from mobile/backend appear automatically
-    const interval = setInterval(() => {
-      loadData();
-    }, 5000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const toggleTheme = () => {
@@ -498,7 +494,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }).then(() => loadData()).catch(err => console.error('Failed to update visibility in unified backend', err));
   };
 
-  const transferCaseCustody = (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string) => {
+  const transferCaseCustody = (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string, overrideReason?: string) => {
       // Find user name if possible
       const targetUser = users.find(u => u.id === newCustodianId);
       const custodianName = targetUser ? targetUser.name : newCustodianId;
@@ -517,11 +513,40 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           newCustodianId,
           newCustodianRole,
           notes,
+          overrideReason,
           actorId: currentUser?.id,
           actorRole: currentUser?.role,
         }),
-      }).then(() => loadData()).catch(err => {
+      }).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          alert(body.message || 'Failed to transfer case custody');
+        }
+        loadData();
+      }).catch(err => {
         console.error('Failed to transfer case custody in unified backend', err);
+      });
+  };
+
+  const reassignCase = (caseId: string, updates: { assignedForensicsId?: string; currentCustodianId?: string }) => {
+      fetch(`${API_BASE}/api/cases/${caseId}/assignment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assigned_forensics_id: updates.assignedForensicsId,
+          current_custodian_id: updates.currentCustodianId,
+          actorId: currentUser?.id,
+          actorRole: currentUser?.role,
+        }),
+      }).then(async (res) => {
+        if (res.ok) {
+          loadData();
+        } else {
+          const body = await res.json().catch(() => ({}));
+          alert(body.message || 'Failed to update case assignment');
+        }
+      }).catch(err => {
+        console.error('Failed to reassign case in unified backend', err);
       });
   };
 
@@ -568,7 +593,9 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       toggleIntegrityHack,
       updateEvidenceVisibility,
       transferCaseCustody,
-      issueSection63Certificate
+      reassignCase,
+      issueSection63Certificate,
+      refreshData: loadData
     }}>
       {children}
     </StoreContext.Provider>

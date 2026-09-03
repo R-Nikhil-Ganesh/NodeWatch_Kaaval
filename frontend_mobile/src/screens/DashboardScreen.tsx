@@ -10,7 +10,12 @@ import { COLORS, SIZES } from '../constants/theme';
 type DashboardProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
 export default function DashboardScreen({ navigation }: { navigation: DashboardProp }) {
-  const { user, users, cases, loading, error } = useApp();
+  const { user, users, cases, loading, error, logout } = useApp();
+
+  const handleSignOut = async () => {
+    await logout();
+    navigation.replace('Auth');
+  };
 
   // Show error alert if any
   React.useEffect(() => {
@@ -52,7 +57,7 @@ export default function DashboardScreen({ navigation }: { navigation: DashboardP
           <Text style={styles.userRole}>{user?.role?.toUpperCase()} • TN POLICE</Text>
         </View>
         
-        <TouchableOpacity onPress={() => navigation.replace('Auth')} style={styles.logoutBtn}>
+        <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
           <Ionicons name="log-out-outline" size={22} color={COLORS.danger} />
         </TouchableOpacity>
       </View>

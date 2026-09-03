@@ -257,7 +257,7 @@ export const Login = () => {
                 <div className="flex justify-center mb-4">
                     <Shield className="w-16 h-16 text-gov-800 dark:text-blue-500" />
                 </div>
-                <h1 className="text-3xl font-bold text-gov-900 dark:text-white tracking-tight">ChainGuard</h1>
+                <h1 className="text-3xl font-bold text-gov-900 dark:text-white tracking-tight">NodeWatch</h1>
                 <p className="text-gov-500 dark:text-gov-400 mt-2">Digital Evidence Chain of Custody System</p>
             </div>
 

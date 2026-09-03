@@ -81,3 +81,8 @@ ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS uploaded_by_role VARCHAR(150
 ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS file_format      VARCHAR(10);
 ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS file_size_kb     INTEGER;
 ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS related_sections JSONB NOT NULL DEFAULT '[]';
+
+-- ----- CASE CUSTODY TRANSFERS: admin-forced override tracking -----
+-- Records the justification when an ADMIN forces a custody transfer
+-- without the current custodian's participation (see caseRoutes.js).
+ALTER TABLE case_custody_transfers ADD COLUMN IF NOT EXISTS override_reason TEXT;

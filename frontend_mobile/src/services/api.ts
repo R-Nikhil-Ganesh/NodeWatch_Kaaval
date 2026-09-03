@@ -166,7 +166,19 @@ class ApiService {
       if (!res.ok) {
         const text = await res.text();
         console.error('uploadCaseEvidence <- non-200', { status: res.status, text });
-        throw new Error(text || `Upload failed with status ${res.status}`);
+        let message = text;
+        try {
+          const parsed = JSON.parse(text);
+          message = parsed.error || parsed.message || text;
+        } catch {
+          // text wasn't JSON — use as-is
+        }
+        const err: any = new Error(message || `Upload failed with status ${res.status}`);
+        // Distinguishes "reached the server, it rejected the request" (status set —
+        // not retryable, must surface to the user) from a genuine network/offline
+        // failure (no status — safe to silently queue for the sync worker).
+        err.status = res.status;
+        throw err;
       }
 
       const data = await res.json();
@@ -295,7 +307,12 @@ class ApiService {
         request: requestInfo,
       });
       const message = (data && (data.error || data.message)) || error.message;
-      throw new Error(message);
+      const err: any = new Error(message);
+      // Set only when the server actually responded (a real rejection, not
+      // retryable) — undefined here means no response was received at all,
+      // i.e. a genuine network/offline failure, safe to queue for later retry.
+      if (status) err.status = status;
+      throw err;
     }
     throw error;
   }

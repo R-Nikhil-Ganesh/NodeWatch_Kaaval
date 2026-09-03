@@ -29,6 +29,7 @@ interface AppContextType {
   token: string | null;
   setUser: (user: User | null) => void;
   registerUser: (newUser: User) => void;
+  logout: () => Promise<void>;
   cases: Case[];
   addCase: (newCase: Case) => void;
   updateCaseEvidence: (caseId: string, evidence: any) => void;
@@ -48,6 +49,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const tokenRef               = useRef<string | null>(null);   // stable ref for sync listeners
 
   const setUser = (u: User | null) => setUserState(u);
+
+  // ─── LOGOUT ───────────────────────────────────────────────────────────────
+  // Clears the persisted JWT and in-memory session so a stale/invalid cached
+  // login (e.g. from an old backend or a user no longer in the DB) can't
+  // silently resurrect itself via the offline session-restore path on the
+  // Auth screen the next time it mounts.
+  const logout = async () => {
+    try {
+      await SecureStore.deleteItemAsync(JWT_STORE_KEY);
+    } catch (e) {
+      console.log('[AppProvider] Failed clearing stored session:', (e as Error).message);
+    }
+    tokenRef.current = null;
+    setToken(null);
+    setUserState(null);
+  };
 
   // ─── BOOT: SQLite-first load ────────────────────────────────────────────
 
@@ -159,7 +176,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         await DB.upsertLocalCase(mapCaseToLocal({ ...created, sync_status: 'SYNCED' }));
       }
     } catch (err: any) {
-      // Network failure is OK — stays queued in SQLite for later sync
+      if (err?.status) {
+        // The server actually responded and rejected the request (e.g. a stale
+        // session) — the case still exists locally as PENDING_CREATE and will
+        // retry via the sync queue, but this specific attempt genuinely failed,
+        // so the caller must not report success.
+        console.log('[addCase] Server rejected create:', err.status, err.message);
+        throw err;
+      }
+      // No response at all — genuine offline/network failure; stays queued for later sync
       console.log('[addCase] Offline, queued for sync:', err.message);
     } finally {
       setLoading(false);
@@ -204,7 +229,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const uploadResp = await apiService.uploadCaseEvidence(caseId, newEvidence.uri, {
         name:      newEvidence.name,
         location:  newEvidence.location,
-        type:      newEvidence.mimeType || newEvidence.type,
+        // `type` must be the evidence category (IMAGE/VIDEO/PDF/...) the backend's
+        // evidence_type enum accepts — NOT the raw MIME type (e.g. "image/jpeg"),
+        // which the server already derives itself from the uploaded file.
+        type:      (newEvidence.type || 'IMAGE').toUpperCase(),
         timestamp: newEvidence.timestamp,
         hash,
         userId:    user?.id,
@@ -230,7 +258,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         });
       }
     } catch (err: any) {
-      // Stay queued offline — the sync worker will retry
+      if (err?.status) {
+        // Server responded and rejected the upload (e.g. bad evidence type,
+        // stale session) — not a connectivity issue, so the caller must know
+        // this attempt failed rather than showing a false "Success".
+        console.log('[updateCaseEvidence] Server rejected upload:', err.status, err.message);
+        throw err;
+      }
+      // No response at all — genuine offline/network failure; stays queued for the sync worker
       console.log('[updateCaseEvidence] Offline, queued:', err.message);
     } finally {
       setLoading(false);
@@ -239,7 +274,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      user, setUser, users, token, registerUser,
+      user, setUser, users, token, registerUser, logout,
       cases, addCase, updateCaseEvidence, loading, error,
     }}>
       {children}

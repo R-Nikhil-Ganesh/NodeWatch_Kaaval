@@ -1,5 +1,5 @@
 {
-  "name": "ChainGuard: Digital Evidence Custody",
+  "name": "NodeWatch: Digital Evidence Custody",
   "description": "A role-based, blockchain-simulated Chain of Custody system for law enforcement and judicial integrity.",
   "requestFramePermissions": [
     "geolocation"

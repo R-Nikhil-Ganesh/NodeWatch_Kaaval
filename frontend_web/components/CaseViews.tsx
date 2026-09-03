@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { Case, Evidence, IntegrityStatus, UserRole, CaseStatus, EvidenceType, LegalDocument, EvidenceClassification } from '../types';
 import { Card, Button, Table, Badge, CaseStatusBadge, IntegrityBadge, Input } from './Common';
-import { ArrowLeft, Upload, FileText, Lock, Eye, AlertTriangle, ShieldCheck, Download, History, File as FileIcon, Loader2, Link as LinkIcon, CheckSquare, Square, ChevronDown, Fingerprint, Shield, X, Send, Gavel, LayoutList, Scale, CheckCircle, Video, FileBadge } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Lock, Eye, AlertTriangle, ShieldCheck, Download, History, File as FileIcon, Loader2, Link as LinkIcon, CheckSquare, Square, ChevronDown, Fingerprint, Shield, X, Send, Gavel, LayoutList, Scale, CheckCircle, Video, FileBadge, Edit2 } from 'lucide-react';
 
 // --- Security Modal Component ---
 const StatusChangeSecurityModal = ({ 
@@ -133,7 +133,7 @@ const ShieldAlertIcon = ({ stage }: { stage: string }) => {
 
 
 export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => void }) => {
-    const { cases, evidence, logs, documents, users, currentUser, addEvidence, addLog, updateCaseStatus, verifyEvidence, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody } = useStore();
+    const { cases, evidence, logs, documents, users, currentUser, addEvidence, addLog, updateCaseStatus, verifyEvidence, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody, reassignCase } = useStore();
     const currentCase = cases.find(c => c.caseId === caseId);
     
     // View State
@@ -171,7 +171,11 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
 
     // Transfer Custody Modal State
     const [transferModalOpen, setTransferModalOpen] = useState(false);
-    const [transferTarget, setTransferTarget] = useState({ role: UserRole.POLICE, userId: '', notes: '' });
+    const [transferTarget, setTransferTarget] = useState({ role: UserRole.POLICE, userId: '', notes: '', overrideReason: '' });
+
+    // Edit Assignment Modal State (Admin only)
+    const [assignModalOpen, setAssignModalOpen] = useState(false);
+    const [assignTarget, setAssignTarget] = useState({ custodianId: '', forensicsId: '' });
 
     // Audit & Status Modal State
     const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null); 
@@ -185,7 +189,9 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
     const canApprove = currentUser.role === UserRole.ADMIN;
     const canVerify = currentUser.role === UserRole.FORENSICS || currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.LEGAL;
     const canFileChargeSheet = currentUser.role === UserRole.POLICE && hasCustody;
-    const canTransferCustody = currentUser.role === UserRole.POLICE && hasCustody;
+    const canTransferCustody = (currentUser.role === UserRole.POLICE && hasCustody) || currentUser.role === UserRole.ADMIN;
+    const isAdminOverrideTransfer = currentUser.role === UserRole.ADMIN;
+    const canEditAssignment = currentUser.role === UserRole.ADMIN;
     
     const handleToggleLink = (id: string) => {
         setLinkedEvidenceIds(prev => 
@@ -240,12 +246,25 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
     // --- Transfer Custody Handler ---
     const handleTransferCustody = () => {
         if (!transferTarget.role) return;
-        
+        if (isAdminOverrideTransfer && !transferTarget.overrideReason.trim()) return;
+
         const targetId = transferTarget.userId || `${transferTarget.role} Department`;
-        
-        transferCaseCustody(caseId, targetId, transferTarget.role, transferTarget.notes);
+
+        transferCaseCustody(caseId, targetId, transferTarget.role, transferTarget.notes, isAdminOverrideTransfer ? transferTarget.overrideReason : undefined);
         setTransferModalOpen(false);
-        setTransferTarget({ role: UserRole.POLICE, userId: '', notes: '' });
+        setTransferTarget({ role: UserRole.POLICE, userId: '', notes: '', overrideReason: '' });
+    };
+
+    // --- Edit Assignment Handler (Admin) ---
+    const handleSubmitAssignment = () => {
+        if (!assignTarget.custodianId && !assignTarget.forensicsId) return;
+
+        reassignCase(caseId, {
+            currentCustodianId: assignTarget.custodianId || undefined,
+            assignedForensicsId: assignTarget.forensicsId || undefined,
+        });
+        setAssignModalOpen(false);
+        setAssignTarget({ custodianId: '', forensicsId: '' });
     };
 
     const handleUpload = () => {
@@ -388,6 +407,11 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                                 </select>
                                 <ChevronDown size={14} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gov-400 pointer-events-none" />
                             </div>
+                            {canEditAssignment && (
+                                <Button size="sm" variant="secondary" onClick={() => setAssignModalOpen(true)}>
+                                    <Edit2 size={14} /> Edit Assignment
+                                </Button>
+                            )}
                         </div>
                     )}
                     
@@ -575,12 +599,13 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                                         log.action === 'COMPROMISED' ? 'bg-red-500' : 
                                         log.action === 'VERIFY' ? 'bg-green-500' : 
                                         log.action === 'TRANSFER_CUSTODY' ? 'bg-purple-500' :
+                                        log.action === 'REASSIGN_CASE' ? 'bg-orange-500' :
                                         log.action === 'ISSUE_CERT' ? 'bg-pink-500' :
                                         'bg-blue-500'
                                     }`}></div>
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start">
                                         <div>
-                                            <p className="text-sm font-bold text-gov-800 dark:text-gov-100">{log.action.replace('_', ' ')}</p>
+                                            <p className="text-sm font-bold text-gov-800 dark:text-gov-100">{log.action.replace(/_/g, ' ')}</p>
                                             <p className="text-sm text-gov-600 dark:text-gov-300">{log.details}</p>
                                             {log.evidenceId && <p className="text-xs text-gov-400 font-mono mt-1">Ref: {log.evidenceId}</p>}
                                         </div>
@@ -709,9 +734,11 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
 
             {transferModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-md" title="Transfer Case Custody">
+                    <Card className="w-full max-w-md" title={isAdminOverrideTransfer ? "Admin Override: Force Custody Transfer" : "Transfer Case Custody"}>
                         <div className="p-3 mb-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800">
-                            <strong>Warning:</strong> Transferring custody shifts legal responsibility. You will lose ability to add evidence or modify charge sheets.
+                            <strong>Warning:</strong> {isAdminOverrideTransfer
+                                ? "This forces a custody change without the current custodian's participation. An override reason is required and will be recorded in the audit trail."
+                                : "Transferring custody shifts legal responsibility. You will lose ability to add evidence or modify charge sheets."}
                         </div>
                         <div className="space-y-4">
                             <div>
@@ -752,11 +779,72 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                                     placeholder="Reason for transfer, special instructions..."
                                 />
                             </div>
+
+                            {isAdminOverrideTransfer && (
+                                <div>
+                                    <label className="block text-sm font-medium text-red-700 dark:text-red-400 mb-1">Override Reason (required)</label>
+                                    <textarea
+                                        className="w-full px-3 py-2 border border-red-300 rounded-md bg-white dark:bg-gov-900 dark:border-red-700 dark:text-white focus:ring-red-500"
+                                        rows={2}
+                                        value={transferTarget.overrideReason}
+                                        onChange={(e) => setTransferTarget({...transferTarget, overrideReason: e.target.value})}
+                                        placeholder="Justification for bypassing the current custodian (e.g. officer on leave, misassignment correction)..."
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="mt-6 flex justify-end gap-2">
                             <Button variant="secondary" onClick={() => setTransferModalOpen(false)}>Cancel</Button>
-                            <Button variant="danger" onClick={handleTransferCustody} disabled={!transferTarget.userId}>
-                                Sign & Transfer Custody
+                            <Button
+                                variant="danger"
+                                onClick={handleTransferCustody}
+                                disabled={!transferTarget.userId || (isAdminOverrideTransfer && !transferTarget.overrideReason.trim())}
+                            >
+                                {isAdminOverrideTransfer ? "Force Transfer" : "Sign & Transfer Custody"}
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {assignModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-md" title="Edit Case Assignment">
+                        <p className="text-xs text-gov-500 dark:text-gov-400 mb-4">
+                            Leave a field on "-- Keep current --" to leave it unchanged. Current custodian: <strong>{currentCase.currentCustodian}</strong>. Current forensics lead: <strong>{currentCase.assignedToForensics || 'Unassigned'}</strong>.
+                        </p>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Custodian (Police)</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                                    value={assignTarget.custodianId}
+                                    onChange={(e) => setAssignTarget({...assignTarget, custodianId: e.target.value})}
+                                >
+                                    <option value="">-- Keep current --</option>
+                                    {users.filter(u => u.role === UserRole.POLICE).map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Forensics Lead</label>
+                                <select
+                                    className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                                    value={assignTarget.forensicsId}
+                                    onChange={(e) => setAssignTarget({...assignTarget, forensicsId: e.target.value})}
+                                >
+                                    <option value="">-- Keep current --</option>
+                                    {users.filter(u => u.role === UserRole.FORENSICS).map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.designation})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <Button variant="secondary" onClick={() => setAssignModalOpen(false)}>Cancel</Button>
+                            <Button onClick={handleSubmitAssignment} disabled={!assignTarget.custodianId && !assignTarget.forensicsId}>
+                                Save Assignment
                             </Button>
                         </div>
                     </Card>

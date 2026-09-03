@@ -2,6 +2,7 @@ import express from 'express';
 import { query } from '../../db/index.js';
 import { auditService } from '../../services/auditService.js';
 import { storageService } from '../../services/storageService.js';
+import { config } from '../../config/index.js';
 
 const router = express.Router();
 
@@ -107,8 +108,6 @@ router.post('/', async (req, res) => {
     const location = req.body.location || 'Crime Scene';
     const timestamp = req.body.timestamp || req.body.created_at;
     const userId = req.body.userId || req.body.created_by_user_id || null;
-    const userRole = req.body.userRole || 'POLICE';
-    const userOrg = req.body.userOrg || 'PoliceMSP';
     const blockchainHash = req.body.blockchainHash || req.body.blockchain_hash || 'pending';
 
     if (!caseId || !title) {
@@ -118,6 +117,22 @@ router.post('/', async (req, res) => {
     const { rows: existing } = await query(`SELECT case_id FROM cases WHERE case_id = $1`, [caseId]);
     if (existing.length) {
       return res.status(409).json({ error: 'Case already exists' });
+    }
+
+    // Resolve the reporting officer's role/org from the verified user record
+    // rather than trusting client-supplied strings (the mobile client sends
+    // userOrg:'POLICE', which isn't a real MSP ID). Also validates the session
+    // up front so a stale/invalid cached login fails clearly instead of
+    // crashing on a foreign key constraint further down.
+    let userRole = 'POLICE';
+    let userOrg = config.fabric.orgs.police.mspId;
+    if (userId) {
+      const { rows: userRows } = await query('SELECT role, org_msp FROM users WHERE user_id = $1', [userId]);
+      if (!userRows.length) {
+        return res.status(401).json({ error: 'Unrecognized user session — please sign out and log in again.' });
+      }
+      userRole = userRows[0].role;
+      userOrg = userRows[0].org_msp || userOrg;
     }
 
     const { rows } = await query(

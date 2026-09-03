@@ -54,7 +54,7 @@ export interface AccessLog {
   caseId?: string;
   accessedBy: string; // User ID
   role: UserRole;
-  action: 'VIEW' | 'DOWNLOAD' | 'VERIFY' | 'UPLOAD' | 'TRANSFER' | 'APPROVE' | 'FREEZE' | 'CREATE_CASE' | 'LOGIN' | 'LOGOUT' | 'UPDATE_USER' | 'COMPROMISED' | 'VISIBILITY_UPDATE' | 'CREATE_DOC' | 'TRANSFER_CUSTODY' | 'ISSUE_CERT';
+  action: 'VIEW' | 'DOWNLOAD' | 'VERIFY' | 'UPLOAD' | 'TRANSFER' | 'APPROVE' | 'FREEZE' | 'CREATE_CASE' | 'LOGIN' | 'LOGOUT' | 'UPDATE_USER' | 'COMPROMISED' | 'VISIBILITY_UPDATE' | 'CREATE_DOC' | 'TRANSFER_CUSTODY' | 'ISSUE_CERT' | 'REASSIGN_CASE';
   timestamp: string;
   details?: string;
 }
