@@ -19,6 +19,7 @@ build/
 out/
 coverage/
 .nyc_output/
+.kiro/
 
 ### Environment & local config
 .env
