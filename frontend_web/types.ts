@@ -16,9 +16,12 @@ export enum CaseStatus {
 
 export enum EvidenceType {
   IMAGE = 'IMAGE',
+  VIDEO = 'VIDEO',
+  AUDIO = 'AUDIO',
   PDF = 'PDF',
   WORD = 'WORD',
-  PHYSICAL = 'PHYSICAL'
+  PHYSICAL = 'PHYSICAL',
+  DISK_IMAGE = 'DISK_IMAGE'
 }
 
 export enum IntegrityStatus {
@@ -66,27 +69,41 @@ export interface EvidenceVisibility {
 export interface Evidence {
   evidenceId: string;
   caseId: string;
+  name?: string;
   type: EvidenceType;
   fileName: string;
+  mimeType?: string;
+  fileSizeBytes?: number;
+  fileUrl?: string;
   uploadedBy: string; // User ID
   role: UserRole;
   timestamp: string;
+  uploadedAt?: string;
   location: string;
   fileHash: string; // System generated hash on upload
   metadataHash: string;
   custodian: string; // Current holder (User ID or Dept)
+  currentCustodianName?: string;
+  ownerMsp?: string;
+  transferTargetMsp?: string;
   integrityStatus: IntegrityStatus;
+  lastVerifiedAt?: string;
   approvedForLegal: boolean;
   visibility: EvidenceVisibility;
   notes?: string;
-  linkedEvidenceIds?: string[]; // New field for pinboard connections
+  linkedEvidenceIds?: string[]; // For pinboard connections
   
-  // New Fields for Section 63 Compliance
+  // BSA / Section 63 & Blockchain Fields
   classification: EvidenceClassification;
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
   sourceHash?: string; // Hash taken at scene
   liftingVideo?: string; // URL/Ref to video of lifting
   liftingVideoHash?: string; // Hash of the lifting video
   section63Certificate?: string; // URL/Ref to certificate issued by forensics
+  section63CertId?: string;
+  blockchainTxId?: string;
+  onChainStatus?: string;
+  collectedTimestamp?: string;
 }
 
 export interface LegalDocument {

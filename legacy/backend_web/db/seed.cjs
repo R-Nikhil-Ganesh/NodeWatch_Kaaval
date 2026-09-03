@@ -151,94 +151,12 @@ const USERS = [
 // ---------------------------------------------------------------------------
 // SEED CASES
 // ---------------------------------------------------------------------------
-const CASES = [
-  {
-    case_id: 'CASE-2024-001',
-    title: 'Robbery at Central Bank',
-    description: 'Armed robbery reported at downtown branch.',
-    status: 'UNDER_INVESTIGATION',
-    location: 'Central Bank, Chennai',
-    created_by_user_id: 'u_police_1',
-    current_custodian_id: 'u_police_1',
-    current_custodian_name: 'S. Murugan',
-    assigned_forensics_id: 'u_forensics_1',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-  {
-    case_id: 'CASE-2024-002',
-    title: 'Traffic Incident #992',
-    description: 'Hit and run on 5th Avenue.',
-    status: 'OPEN',
-    location: '5th Avenue, Chennai',
-    created_by_user_id: 'u_police_1',
-    current_custodian_id: 'u_police_1',
-    current_custodian_name: 'S. Murugan',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    case_id: 'CASE-2026-001',
-    title: 'Theft at Anna Nagar',
-    description: 'Theft reported at Anna Nagar residential area.',
-    status: 'OPEN',
-    location: '13.0827° N, 80.2707° E',
-    created_by_user_id: 'u1',
-    current_custodian_id: 'u1',
-    current_custodian_name: 'Nikhil Ganesh',
-    blockchain_hash: '0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
-    created_at: new Date('2026-01-15T10:00:00Z').toISOString(),
-  },
-];
+const CASES = [];
 
 // ---------------------------------------------------------------------------
 // SEED EVIDENCE
 // ---------------------------------------------------------------------------
-const EVIDENCE = [
-  {
-    evidence_id: 'EV-001-A',
-    case_id: 'CASE-2024-001',
-    name: 'CCTV Frame 01',
-    file_name: 'cctv_frame_01.jpg',
-    type: 'IMAGE',
-    file_url: '',
-    file_hash: '0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1',
-    metadata_hash: '0x123abc',
-    source_hash: '0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1',
-    lifting_video_url: 'video_lifting_cctv.mp4',
-    lifting_video_hash: '0x112233',
-    classification: 'PRIMARY',
-    integrity_status: 'VERIFIED',
-    approved_for_legal: true,
-    notes: 'Recovered from damaged server',
-    uploaded_by: 'u_police_1',
-    current_custodian_id: 'u_forensics_1',
-    current_custodian_name: 'Dr. Karthik Venkat',
-    owner_msp: 'Org1MSP',
-    collected_location: 'Central Bank Main Hall',
-    linked_evidence_ids: JSON.stringify(['EV-001-B']),
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-  },
-  {
-    evidence_id: 'EV-001-B',
-    case_id: 'CASE-2024-001',
-    name: 'Shell Casing Sample',
-    file_name: 'shell_casing.docx',
-    type: 'PHYSICAL',
-    file_url: '',
-    file_hash: '0xffffeeee',
-    metadata_hash: '0xaaabbb',
-    classification: 'SECONDARY',
-    integrity_status: 'PENDING',
-    approved_for_legal: false,
-    notes: 'Ballistics report pending',
-    uploaded_by: 'u_forensics_1',
-    current_custodian_id: 'u_forensics_1',
-    current_custodian_name: 'Dr. Karthik Venkat',
-    owner_msp: 'Org1MSP',
-    collected_location: 'Lab A',
-    linked_evidence_ids: JSON.stringify(['EV-001-A']),
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-];
+const EVIDENCE = [];
 
 // ---------------------------------------------------------------------------
 // RUNNER

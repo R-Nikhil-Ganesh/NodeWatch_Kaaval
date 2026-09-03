@@ -51,23 +51,35 @@ router.post('/', async (req, res) => {
   try {
     const {
       caseId, title, description, status, currentCustodian, createdBy,
-      assignedToForensics, actorId, actorRole,
+      assignedToForensics, location, incidentTimestamp, actorId, actorRole,
     } = req.body || {};
 
     const id = caseId || `CASE-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    const custodianId = currentCustodian || createdBy || actorId || null;
+
+    let custodianName = null;
+    if (custodianId) {
+      const { rows: uRows } = await query('SELECT name FROM users WHERE user_id = $1', [custodianId]);
+      if (uRows.length) custodianName = uRows[0].name;
+    }
+
     const { rows } = await query(
       `INSERT INTO cases
-         (case_id, title, description, status, created_by_user_id,
-          current_custodian_id, assigned_forensics_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+         (case_id, title, description, status, location, incident_timestamp,
+          created_by_user_id, current_custodian_id, current_custodian_name,
+          assigned_forensics_id, blockchain_hash, version, is_deleted, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',1,FALSE,NOW(),NOW())
        RETURNING *, case_id AS "caseId"`,
       [
         id,
         title || 'Untitled Case',
         description || '',
         status || 'OPEN',
+        location || 'Unspecified',
+        incidentTimestamp ? new Date(incidentTimestamp) : null,
         createdBy || actorId || null,
-        currentCustodian || createdBy || actorId || null,
+        custodianId,
+        custodianName,
         assignedToForensics || null,
       ]
     );
@@ -78,7 +90,7 @@ router.post('/', async (req, res) => {
       userRole: actorRole,
       action: 'CREATE_CASE',
       source: 'WEB',
-      details: { title: rows[0].title },
+      details: { title: rows[0].title, location: rows[0].location },
     });
 
     res.status(201).json(rows[0]);

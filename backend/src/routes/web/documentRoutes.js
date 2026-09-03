@@ -22,15 +22,17 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { caseId, title, type, description, uploadedBy, linkedEvidenceIds, actorId, actorRole } = req.body || {};
+    const { caseId, title, type, description, uploadedBy, linkedEvidenceIds, fileUrl, fileHash, actorId, actorRole } = req.body || {};
     const { rows } = await query(
-      `INSERT INTO case_documents (case_id, title, type, description, uploaded_by, linked_evidence_ids)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO case_documents (case_id, title, type, description, file_url, file_hash, uploaded_by, linked_evidence_ids)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [
         caseId,
         title || 'Untitled',
         type || 'FIR',
         description || null,
+        fileUrl || null,
+        fileHash || null,
         uploadedBy || actorId || null,
         JSON.stringify(linkedEvidenceIds || []),
       ]
@@ -42,7 +44,7 @@ router.post('/', async (req, res) => {
       userRole: actorRole,
       action: 'CREATE_DOC',
       source: 'WEB',
-      details: { title },
+      details: { title, hash: fileHash },
     });
 
     res.status(201).json(rows[0]);

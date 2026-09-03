@@ -71,7 +71,7 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
   const handleCredentialCheck = async () => {
     setLoading(true);
     try {
-      // Attempt online login against central backend_web API
+      // Attempt online login against unified backend API
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
