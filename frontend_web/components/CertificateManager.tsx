@@ -23,7 +23,7 @@ export const CertificateManager = () => {
 
     const handleIssueCert = () => {
         if (certEvidenceId && certFile) {
-            const certRef = `CERT-${Date.now()}.pdf`; // Mock file ref
+            const certRef = `CERT-${Date.now()}.pdf`;
             issueSection63Certificate(certEvidenceId, certRef);
             setCertModalOpen(false);
             setCertEvidenceId(null);

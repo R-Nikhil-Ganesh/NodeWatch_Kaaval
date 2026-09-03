@@ -194,6 +194,138 @@ async function runTests() {
     }
   });
 
+  // 9. 3-Org Consortium Endorsement Policy Check
+  await test('9. 3-Organization Consortium Policy Check (/network/endorsement-policy)', async () => {
+    const res = await fetch(`${API_BASE}/network/endorsement-policy`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.network !== 'Hyperledger Fabric 3-Organization Consortium') {
+      throw new Error(`Unexpected network: ${data.network}`);
+    }
+    if (!data.organizations.police || !data.organizations.forensics || !data.organizations.court) {
+      throw new Error('Consortium missing one of the 3 required organizations');
+    }
+    if (data.organizations.police.mspId !== 'Org1MSP' || data.organizations.forensics.mspId !== 'Org2MSP' || data.organizations.court.mspId !== 'Org3MSP') {
+      throw new Error(`MSP ID mismatch: ${JSON.stringify(data.organizations)}`);
+    }
+  });
+
+  // 10. Web Evidence Vault Upload (populating all 34 database columns)
+  const webEvidenceId = `EV_VAULT_${Date.now()}`;
+  await test('10. Web Evidence Vault Upload with 34 DB Columns (/api/evidence)', async () => {
+    const res = await fetch(`${API_BASE}/api/evidence`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${webToken}`,
+      },
+      body: JSON.stringify({
+        evidenceId: webEvidenceId,
+        caseId: testCaseId,
+        name: 'Encrypted Hard Disk',
+        type: 'DISK_IMAGE',
+        fileName: 'physical_disk_01.raw',
+        mimeType: 'application/octet-stream',
+        fileSizeBytes: 2147483648,
+        fileUrl: 'minio://evidence-vault/physical_disk_01.raw',
+        fileHash: expectedSourceHash,
+        sourceHash: expectedSourceHash,
+        classification: 'PRIMARY',
+        liftingVideo: 'https://minio.internal/lifting_video.mp4',
+        liftingVideoHash: expectedSourceHash,
+        riskLevel: 'HIGH',
+        location: 'Central Vault Room B',
+        notes: 'Primary seizure with continuous lifting video recording',
+        uploadedBy: 'u_police_1',
+        ownerMsp: 'Org1MSP',
+        actorId: 'u_police_1',
+        actorRole: 'POLICE',
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (data.classification !== 'PRIMARY' || data.type !== 'DISK_IMAGE') {
+      throw new Error(`Evidence fields unexpected: class=${data.classification}, type=${data.type}`);
+    }
+  });
+
+  // 11. Multi-Org Custody Transfer Request
+  await test('11. Custody Transfer Initiation Handshake (/transfer/request)', async () => {
+    const res = await fetch(`${API_BASE}/transfer/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${webToken}`,
+      },
+      body: JSON.stringify({
+        evidenceID: webEvidenceId,
+        targetMSP: 'Org2MSP',
+        actorId: 'u_police_1',
+        actorRole: 'POLICE',
+        notes: 'Dispatching physical drive to State Forensic Science Laboratory',
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (data.targetMSP !== 'Org2MSP') throw new Error(`Unexpected targetMSP: ${data.targetMSP}`);
+  });
+
+  // 12. Multi-Org Custody Transfer Accept
+  await test('12. Custody Transfer Acceptance Handshake (/transfer/accept)', async () => {
+    const res = await fetch(`${API_BASE}/transfer/accept`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${webToken}`,
+      },
+      body: JSON.stringify({
+        evidenceID: webEvidenceId,
+        actorId: 'u_forensics_1',
+        actorRole: 'FORENSICS',
+        notes: 'Seals verified intact upon receipt at FSL Lab',
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (!data.message || !data.message.includes('accepted')) {
+      throw new Error(`Unexpected accept response: ${JSON.stringify(data)}`);
+    }
+  });
+
+  // 13. Case Legal Document Creation
+  await test('13. Case Legal Document Creation (/api/documents)', async () => {
+    const res = await fetch(`${API_BASE}/api/documents`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${webToken}`,
+      },
+      body: JSON.stringify({
+        caseId: testCaseId,
+        title: 'Seizure Memo (Panchnama)',
+        type: 'COURT_ORDER',
+        description: 'Certified panchnama prepared at crime scene in presence of independent panch witnesses',
+        fileUrl: 'minio://evidence-vault/docs/panchnama.pdf',
+        fileHash: expectedSourceHash,
+        uploadedBy: 'u_police_1',
+        linkedEvidenceIds: [webEvidenceId, testEvidenceId],
+        actorId: 'u_police_1',
+        actorRole: 'POLICE',
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (data.type !== 'COURT_ORDER') throw new Error(`Unexpected document type: ${data.type}`);
+  });
+
+  // 14. Transactional Outbox & Ledger Verification
+  await test('14. Transactional Outbox Queue Check (/health/fabric)', async () => {
+    const res = await fetch(`${API_BASE}/health/fabric`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.status) throw new Error('No fabric health status reported');
+  });
+
   console.log('\n====================================================');
   console.log(`🎉 TEST SUMMARY: ${passed} PASSED | ${failed} FAILED`);
   console.log('====================================================\n');

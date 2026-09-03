@@ -39,7 +39,7 @@ const UserProfileModal = ({
 
   const handlePfpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-        // Mock upload - create object URL
+        // Create preview object URL for profile picture
         const url = URL.createObjectURL(e.target.files[0]);
         setFormData({ ...formData, profileImage: url });
     }

@@ -255,7 +255,7 @@ export const LegalDashboard = ({ onNavigate }: DashboardProps) => {
             return;
         }
 
-        // Trigger verification (Mocking a batch process)
+        // Trigger verification for each approved item
         caseEvidence.forEach(e => verifyEvidence(e.evidenceId));
 
         // Calculate Stats

@@ -39,6 +39,7 @@ router.post('/login', async (req, res) => {
       userOrg: user.org_msp,
       action: 'LOGIN',
       source: 'WEB',
+      details: { title: 'User logged in' },
     });
 
     const { password_hash, ...safeUser } = user;
@@ -67,6 +68,7 @@ router.post('/logout', async (req, res) => {
           userOrg: rows[0].org_msp,
           action: 'LOGOUT',
           source: 'WEB',
+          details: { title: 'User logged out' },
         });
       }
     }

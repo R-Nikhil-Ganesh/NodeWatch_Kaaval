@@ -259,26 +259,12 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     setIsAuthenticated(true);
     localStorage.setItem('kaaval_user', JSON.stringify(user));
     
-    addLog({
-        accessedBy: user.id,
-        role: user.role,
-        action: 'LOGIN',
-        details: 'User logged in'
-    });
-
-    // Refresh state from backend
+    // Refresh authoritative state and logs from backend
     loadData();
   };
 
   const logout = () => {
     if (currentUser) {
-        addLog({
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'LOGOUT',
-            details: 'User logged out'
-        });
-
         fetch(`${API_BASE}/api/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -296,14 +282,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     if (currentUser && currentUser.id === updatedUser.id) {
         setCurrentUser(updatedUser);
     }
-    if (currentUser) {
-        addLog({
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'UPDATE_USER',
-            details: `Updated profile for ${updatedUser.name} (${updatedUser.role})`
-        });
-    }
 
     fetch(`${API_BASE}/api/users/${updatedUser.id}`, {
       method: 'PATCH',
@@ -313,7 +291,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorId: currentUser?.id,
         actorRole: currentUser?.role
       })
-    }).catch((error) => {
+    }).then(() => loadData()).catch((error) => {
       console.error('Failed to update user', error);
     });
   };
@@ -324,15 +302,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     const caseToSave = { ...newCase, status: normalizedStatus };
 
     setCases(prev => [caseToSave, ...prev]);
-    if (currentUser) {
-        addLog({
-            caseId: newCase.caseId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'CREATE_CASE',
-            details: `Created case ${newCase.caseId}`
-        });
-    }
 
     fetch(`${API_BASE}/api/cases`, {
       method: 'POST',
@@ -352,6 +321,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       if (res.ok) {
         const saved = await res.json();
         setCases(prev => prev.map(c => c.caseId === newCase.caseId ? mapDbCaseToCase(saved) : c));
+        loadData();
       }
     }).catch(err => {
       console.error('Failed to create case in unified backend', err);
@@ -378,16 +348,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     };
 
     setEvidence(prev => [processedEvidence, ...prev]);
-    if (currentUser) {
-        addLog({
-            evidenceId: newEvidence.evidenceId,
-            caseId: newEvidence.caseId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'UPLOAD',
-            details: `Uploaded ${newEvidence.fileName} (${newEvidence.type}) as ${classification} [Risk: ${processedEvidence.riskLevel}]`
-        });
-    }
 
     fetch(`${API_BASE}/api/evidence`, {
       method: 'POST',
@@ -425,21 +385,13 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       if (res.ok) {
         const saved = await res.json();
         setEvidence(prev => prev.map(e => e.evidenceId === newEvidence.evidenceId ? mapDbEvidenceToEvidence(saved) : e));
+        loadData();
       }
     }).catch(err => console.error('Failed to save evidence to unified backend', err));
   };
 
   const addDocument = (doc: LegalDocument) => {
     setDocuments(prev => [doc, ...prev]);
-    if (currentUser) {
-        addLog({
-            caseId: doc.caseId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'CREATE_DOC',
-            details: `Created ${doc.type}: ${doc.title}`
-        });
-    }
 
     fetch(`${API_BASE}/api/documents`, {
       method: 'POST',
@@ -454,7 +406,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorId: currentUser?.id,
         actorRole: currentUser?.role,
       }),
-    }).catch(err => console.error('Failed to create document in unified backend', err));
+    }).then(() => loadData()).catch(err => console.error('Failed to create document in unified backend', err));
   };
 
   const updateCaseStatus = (caseId: string, status: CaseStatus) => {
@@ -462,15 +414,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     const normalizedStatus = (Object.values(CaseStatus).includes(rawStatus as CaseStatus) ? rawStatus : CaseStatus.OPEN) as CaseStatus;
 
     setCases(prev => prev.map(c => c.caseId === caseId ? { ...c, status: normalizedStatus } : c));
-    if (currentUser) {
-        addLog({
-            caseId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'APPROVE',
-            details: `Status changed to ${normalizedStatus}`
-        });
-    }
 
     fetch(`${API_BASE}/api/cases/${caseId}/status`, {
       method: 'PATCH',
@@ -480,7 +423,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorId: currentUser?.id,
         actorRole: currentUser?.role,
       }),
-    }).catch(err => {
+    }).then(() => loadData()).catch(err => {
       console.error('Failed to update case status in unified backend', err);
     });
   };
@@ -491,15 +434,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     const newStatus = isCompromised ? IntegrityStatus.COMPROMISED : IntegrityStatus.VERIFIED;
 
     setEvidence(prev => prev.map(e => e.evidenceId === evidenceId ? { ...e, integrityStatus: newStatus } : e));
-    if (currentUser) {
-        addLog({
-            evidenceId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'VERIFY',
-            details: 'Run integrity verification check'
-        });
-    }
 
     fetch(`${API_BASE}/api/forensics/verify`, {
       method: 'POST',
@@ -511,7 +445,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorRole: currentUser?.role,
         notes: `Forensic verification performed by ${currentUser?.name || 'Analyst'}`,
       }),
-    }).catch(err => console.error('Failed to submit forensic verification to unified backend', err));
+    }).then(() => loadData()).catch(err => console.error('Failed to submit forensic verification to unified backend', err));
   };
 
   const approveEvidence = (evidenceId: string) => {
@@ -524,15 +458,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }
 
     setEvidence(prev => prev.map(e => e.evidenceId === evidenceId ? { ...e, approvedForLegal: true } : e));
-    if (currentUser) {
-         addLog({
-            evidenceId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'APPROVE',
-            details: 'Evidence approved for legal proceedings'
-        });
-    }
 
     fetch(`${API_BASE}/api/evidence/${evidenceId}/approve`, {
       method: 'PATCH',
@@ -541,7 +466,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorId: currentUser?.id,
         actorRole: currentUser?.role,
       }),
-    }).catch(err => console.error('Failed to approve evidence in unified backend', err));
+    }).then(() => loadData()).catch(err => console.error('Failed to approve evidence in unified backend', err));
   };
 
   const toggleIntegrityHack = (evidenceId: string) => {
@@ -561,16 +486,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         }
         return e;
     }));
-    
-    if (currentUser) {
-        addLog({
-            evidenceId,
-            accessedBy: currentUser.id,
-            role: currentUser.role,
-            action: 'VISIBILITY_UPDATE',
-            details: `Access controls updated${visibility.isRestricted ? ' (Restricted)' : ' (Public)'}`
-        });
-    }
 
     fetch(`${API_BASE}/api/evidence/${evidenceId}/visibility`, {
       method: 'PATCH',
@@ -580,7 +495,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         actorId: currentUser?.id,
         actorRole: currentUser?.role,
       }),
-    }).catch(err => console.error('Failed to update visibility in unified backend', err));
+    }).then(() => loadData()).catch(err => console.error('Failed to update visibility in unified backend', err));
   };
 
   const transferCaseCustody = (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string) => {
@@ -595,16 +510,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           return c;
       }));
 
-      if (currentUser) {
-          addLog({
-              caseId,
-              accessedBy: currentUser.id,
-              role: currentUser.role,
-              action: 'TRANSFER_CUSTODY',
-              details: `Case custody transferred to ${custodianName} (${newCustodianRole}). ${notes || ''}`
-          });
-      }
-
       fetch(`${API_BASE}/api/cases/${caseId}/transfer-custody`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -615,7 +520,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           actorId: currentUser?.id,
           actorRole: currentUser?.role,
         }),
-      }).catch(err => {
+      }).then(() => loadData()).catch(err => {
         console.error('Failed to transfer case custody in unified backend', err);
       });
   };
@@ -628,16 +533,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           return e;
       }));
 
-      if (currentUser) {
-          addLog({
-              evidenceId,
-              accessedBy: currentUser.id,
-              role: currentUser.role,
-              action: 'ISSUE_CERT',
-              details: 'Section 63 Certificate issued for Secondary Evidence'
-          });
-      }
-
       fetch(`${API_BASE}/api/evidence/${evidenceId}/section63`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -646,7 +541,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           actorId: currentUser?.id,
           actorRole: currentUser?.role,
         }),
-      }).catch(err => console.error('Failed to issue Section 63 Certificate in unified backend', err));
+      }).then(() => loadData()).catch(err => console.error('Failed to issue Section 63 Certificate in unified backend', err));
   };
 
   return (
