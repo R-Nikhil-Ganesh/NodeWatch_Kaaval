@@ -6,7 +6,7 @@ import { Badge } from '../ui/Primitives';
 import { stageTone } from '../../utils/caseMeta';
 
 const TABS = [
-  { to: 'home', label: 'Case Home', icon: Gavel },
+  { to: 'home', label: 'General', icon: Gavel },
   { to: 'files', label: 'Case Files', icon: FileStack },
   { to: 'evidence', label: 'Evidence', icon: ShieldCheck },
   { to: 'audit-logs', label: 'Audit Logs', icon: ScrollText },
