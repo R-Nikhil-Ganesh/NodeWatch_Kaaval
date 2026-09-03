@@ -104,6 +104,7 @@ export async function upsertLocalEvidence(ev: {
   risk_level?: string;
   collected_location?: string;
   collected_timestamp?: string;
+  uploaded_by_user_id?: string;
   sync_status?: string;
   created_at: string;
   updated_at: string;
@@ -114,8 +115,8 @@ export async function upsertLocalEvidence(ev: {
     `INSERT INTO local_evidence
        (evidence_id, case_id, name, file_name, type, local_file_uri, remote_file_url,
         file_hash, metadata_hash, classification, integrity_status, risk_level,
-        collected_location, collected_timestamp, sync_status, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        collected_location, collected_timestamp, uploaded_by_user_id, sync_status, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(evidence_id) DO UPDATE SET
        remote_file_url    = excluded.remote_file_url,
        integrity_status   = excluded.integrity_status,
@@ -128,9 +129,48 @@ export async function upsertLocalEvidence(ev: {
       safe.classification || 'SECONDARY', safe.integrity_status || 'UNVERIFIED',
       safe.risk_level || 'LOW',
       safe.collected_location || null, safe.collected_timestamp || null,
+      safe.uploaded_by_user_id || null,
       safe.sync_status || 'PENDING_UPLOAD',
       safe.created_at, safe.updated_at,
     ]
+  );
+}
+
+// ─── PENDING EVIDENCE UPLOAD RETRY ─────────────────────────────────────────
+
+const MAX_EVIDENCE_UPLOAD_ATTEMPTS = 5;
+
+/** Evidence rows whose real file upload never completed and hasn't exhausted its retries. */
+export async function getPendingEvidenceUploads(): Promise<any[]> {
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM local_evidence
+     WHERE sync_status = 'PENDING_UPLOAD' AND sync_retry_count < ?
+     ORDER BY created_at ASC`,
+    [MAX_EVIDENCE_UPLOAD_ATTEMPTS]
+  );
+  return Promise.all(rows.map((row: any) => decryptEvidenceFields(row)));
+}
+
+/** Mark a retried evidence upload as fully synced. */
+export async function markEvidenceSynced(evidenceId: string, remoteFileUrl?: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    `UPDATE local_evidence SET sync_status = 'SYNCED', remote_file_url = ?, updated_at = ? WHERE evidence_id = ?`,
+    [remoteFileUrl || null, new Date().toISOString(), evidenceId]
+  );
+}
+
+/** Record a failed retry attempt; gives up (status FAILED) after MAX_EVIDENCE_UPLOAD_ATTEMPTS. */
+export async function markEvidenceUploadRetryFailed(evidenceId: string): Promise<void> {
+  const db = await openDatabase();
+  await db.runAsync(
+    `UPDATE local_evidence
+     SET sync_retry_count = sync_retry_count + 1,
+         sync_status = CASE WHEN sync_retry_count + 1 >= ? THEN 'FAILED' ELSE 'PENDING_UPLOAD' END,
+         updated_at = ?
+     WHERE evidence_id = ?`,
+    [MAX_EVIDENCE_UPLOAD_ATTEMPTS, new Date().toISOString(), evidenceId]
   );
 }
 

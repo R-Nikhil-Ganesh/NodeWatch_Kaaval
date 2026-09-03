@@ -19,7 +19,7 @@ import { MOCK_LEDGER } from '../data/mockData';
 import { apiService } from '../services/api';
 import * as DB from '../db/index';
 import { enqueue } from '../db/index';
-import { registerSyncListeners, flushSyncQueue } from '../db/sync';
+import { registerSyncListeners, flushSyncQueue, flushPendingEvidenceUploads } from '../db/sync';
 
 const JWT_STORE_KEY = 'kaaval_jwt_v1';
 
@@ -120,11 +120,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         await DB.upsertLocalCase(mapCaseToLocal(c));
       }
 
-      // Update React state
-      setCases(remoteCases);
+      // Update React state — must go through the same mapper used for the
+      // SQLite-loaded path (line ~88), since the raw server response is
+      // snake_case-ish (officer_name, created_at, blockchain_hash) while
+      // screens read the camelCase Case shape (officer, timestamp,
+      // blockchainHash). Setting raw rows here made those fields render as
+      // "Unassigned"/"Recent" right after every live sync.
+      setCases(remoteCases.map(mapLocalCaseToCase));
 
       // Flush any queued local mutations now that we're online
       await flushSyncQueue(authToken ?? tokenRef.current ?? undefined);
+      await flushPendingEvidenceUploads();
     } catch (e) {
       // Network unreachable — SQLite data already loaded, nothing to do
       console.log('[AppProvider] Remote pull skipped (offline):', (e as Error).message);
@@ -213,6 +219,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         metadata_hash:      '',
         collected_location: newEvidence.location || '',
         collected_timestamp: now,
+        uploaded_by_user_id: user?.id,
         sync_status:        'PENDING_UPLOAD',
         created_at:         now,
         updated_at:         now,

@@ -238,6 +238,16 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
         };
         
         addDocument(newDoc);
+
+        // Filing the chargesheet IS the procedural act of sending a case to
+        // court — without this, the case status never leaves
+        // UNDER_INVESTIGATION/OPEN, the backend never stamps a court_stage,
+        // and the case silently never appears in the Legal (Court
+        // Management) portal even though the chargesheet document exists.
+        if (currentCase.status !== CaseStatus.SUBMITTED_TO_COURT) {
+            updateCaseStatus(caseId, CaseStatus.SUBMITTED_TO_COURT);
+        }
+
         setChargeSheetModalOpen(false);
         setChargeData({ accused: '', charges: '', details: '' });
         setChargeEvidenceIds([]);

@@ -47,6 +47,9 @@ export const CREATE_LOCAL_EVIDENCE = `
     risk_level           TEXT    NOT NULL DEFAULT 'LOW',
     collected_location   TEXT,
     collected_timestamp  TEXT,
+    -- Officer who captured this evidence — needed to correctly attribute the
+    -- upload if it has to be retried later (e.g. after an app restart).
+    uploaded_by_user_id  TEXT,
     -- sync_status tracks upload progress
     -- Values: 'PENDING_UPLOAD' | 'UPLOADING' | 'SYNCED' | 'FAILED'
     sync_status          TEXT    NOT NULL DEFAULT 'PENDING_UPLOAD',
