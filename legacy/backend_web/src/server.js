@@ -357,40 +357,98 @@ app.get('/api/evidence', async (req, res) => {
 app.post('/api/evidence', async (req, res) => {
   try {
     const {
-      evidenceId, caseId, type, fileName, uploadedBy, role,
-      location, fileHash, metadataHash, custodian, integrityStatus,
-      approvedForLegal, notes, linkedEvidenceIds, classification,
+      evidenceId, caseId, name, type, fileName, mimeType, fileSizeBytes, fileUrl,
+      uploadedBy, role, location, timestamp, fileHash, metadataHash,
+      custodian, currentCustodianName, ownerMsp, transferTargetMsp,
+      integrityStatus, lastVerifiedAt, approvedForLegal, section63CertId,
+      notes, linkedEvidenceIds, classification, riskLevel,
       sourceHash, liftingVideo, liftingVideoHash, visibility,
+      blockchainTxId, onChainStatus,
       actorId, actorRole,
     } = req.body || {};
 
     const id = evidenceId || `EV-${Date.now().toString(36).toUpperCase()}`;
-    // Classification rule: PRIMARY only if sourceHash + liftingVideo present
-    const resolvedClass = (sourceHash && liftingVideo) ? 'PRIMARY' : (classification || 'SECONDARY');
+    const resolvedClass = (sourceHash && (liftingVideo || liftingVideoHash)) ? 'PRIMARY' : (classification || 'SECONDARY');
+    const resolvedRisk = (riskLevel || 'LOW').toUpperCase();
+    const resolvedType = (type || 'IMAGE').toUpperCase();
+
+    // Deterministic metadata hash
+    let computedMetaHash = metadataHash;
+    if (!computedMetaHash) {
+      const metaPayload = {
+        caseId,
+        evidenceId: id,
+        name: name || fileName || id,
+        type: resolvedType,
+        location: location || 'Crime Scene',
+        submittedBy: uploadedBy || actorId || 'Unknown',
+        fileHash: fileHash || '',
+        sourceHash: sourceHash || fileHash || '',
+      };
+      const ordered = Object.fromEntries(
+        Object.entries(metaPayload)
+          .filter(([_, v]) => v !== undefined && v !== null)
+          .sort(([a], [b]) => a.localeCompare(b))
+      );
+      computedMetaHash = crypto.createHash('sha256').update(JSON.stringify(ordered)).digest('hex');
+    }
 
     const dbClient = await getClient();
     try {
       await dbClient.query('BEGIN');
 
+      let custodianName = currentCustodianName;
+      if (!custodianName && (uploadedBy || actorId)) {
+        const userRes = await dbClient.query('SELECT name FROM users WHERE user_id = $1', [uploadedBy || actorId]);
+        if (userRes.rows.length > 0) {
+          custodianName = userRes.rows[0].name;
+        }
+      }
+
       const { rows } = await dbClient.query(
         `INSERT INTO evidence
-           (evidence_id, case_id, name, file_name, type, file_url, file_hash, metadata_hash,
-            source_hash, lifting_video_url, lifting_video_hash,
-            classification, integrity_status, approved_for_legal, notes,
-            uploaded_by, current_custodian_id, current_custodian_name,
-            owner_msp, collected_location, linked_evidence_ids)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+           (evidence_id, case_id, name, file_name, type, mime_type, file_size_bytes, file_url,
+            file_hash, metadata_hash, source_hash, lifting_video_url, lifting_video_hash,
+            classification, risk_level, integrity_status, last_verified_at, approved_for_legal,
+            section63_cert_id, notes, uploaded_by, current_custodian_id, current_custodian_name,
+            owner_msp, transfer_target_msp, collected_location, collected_timestamp,
+            linked_evidence_ids, blockchain_tx_id, on_chain_status, version, is_deleted,
+            created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,NOW(),NOW())
          RETURNING *`,
         [
-          id, caseId, fileName || id, fileName || id, (type || 'IMAGE').toUpperCase(),
-          '', fileHash || '', metadataHash || '',
-          sourceHash || null, liftingVideo || null, liftingVideoHash || null,
-          resolvedClass, integrityStatus || 'NOT_CHECKED', approvedForLegal || false,
+          id,
+          caseId,
+          name || fileName || id,
+          fileName || id,
+          resolvedType,
+          mimeType || null,
+          fileSizeBytes ? parseInt(fileSizeBytes, 10) : null,
+          fileUrl || '',
+          fileHash || '',
+          computedMetaHash,
+          sourceHash || fileHash || null,
+          liftingVideo || null,
+          liftingVideoHash || null,
+          resolvedClass,
+          resolvedRisk,
+          integrityStatus || 'NOT_CHECKED',
+          lastVerifiedAt ? new Date(lastVerifiedAt) : null,
+          approvedForLegal === true,
+          section63CertId || null,
           notes || null,
           uploadedBy || actorId || null,
-          custodian || uploadedBy || actorId || null, null,
-          'Org1MSP', location || null,
+          custodian || uploadedBy || actorId || null,
+          custodianName || null,
+          ownerMsp || 'Org1MSP',
+          transferTargetMsp || null,
+          location || 'Crime Scene',
+          timestamp ? new Date(timestamp) : new Date(),
           JSON.stringify(linkedEvidenceIds || []),
+          blockchainTxId || null,
+          onChainStatus || 'BLOCKCHAIN_PENDING',
+          1,
+          false,
         ]
       );
 
@@ -400,7 +458,12 @@ app.post('/api/evidence', async (req, res) => {
         `INSERT INTO evidence_visibility
            (evidence_id, is_restricted, allowed_roles, allowed_designations, allowed_user_ids)
          VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (evidence_id) DO NOTHING`,
+         ON CONFLICT (evidence_id) DO UPDATE SET
+           is_restricted = EXCLUDED.is_restricted,
+           allowed_roles = EXCLUDED.allowed_roles,
+           allowed_designations = EXCLUDED.allowed_designations,
+           allowed_user_ids = EXCLUDED.allowed_user_ids,
+           updated_at = NOW()`,
         [
           id,
           v.isRestricted || false,
@@ -410,15 +473,45 @@ app.post('/api/evidence', async (req, res) => {
         ]
       );
 
+      // Enqueue to Blockchain Outbox (matching Fabric CreateEvidence smart contract)
+      await dbClient.query(
+        `INSERT INTO blockchain_outbox
+           (event_type, entity_id, case_id, payload, status)
+         VALUES ($1, $2, $3, $4, 'PENDING')`,
+        [
+          'CREATE_EVIDENCE',
+          id,
+          caseId,
+          JSON.stringify({
+            evidenceId: id,
+            caseId,
+            sourceHash: sourceHash || fileHash || '',
+            serverHash: fileHash || '',
+            metadataHash: computedMetaHash,
+            riskLevel: resolvedRisk,
+            actorId: actorId || uploadedBy || 'SYSTEM',
+            actorRole: actorRole || role || 'POLICE',
+          }),
+        ]
+      );
+
       await dbClient.query('COMMIT');
 
       await logAudit({
-        caseId, evidenceId: id, userId: actorId || uploadedBy, userRole: actorRole || role,
+        caseId,
+        evidenceId: id,
+        userId: actorId || uploadedBy,
+        userRole: actorRole || role,
         action: 'UPLOAD',
-        details: { fileName, fileType: type, hash: fileHash, location, metadataHash },
+        details: { fileName, fileType: resolvedType, hash: fileHash, location, metadataHash: computedMetaHash, classification: resolvedClass, riskLevel: resolvedRisk },
       });
 
-      res.status(201).json({ ...rows[0], visibility: v });
+      res.status(201).json({
+        ...rows[0],
+        evidenceId: rows[0].evidence_id,
+        caseId: rows[0].case_id,
+        visibility: v,
+      });
     } catch (e) {
       await dbClient.query('ROLLBACK');
       throw e;

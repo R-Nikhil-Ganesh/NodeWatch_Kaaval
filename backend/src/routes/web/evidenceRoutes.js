@@ -2,6 +2,7 @@ import express from 'express';
 import { query, getClient } from '../../db/index.js';
 import { storageService } from '../../services/storageService.js';
 import { auditService } from '../../services/auditService.js';
+import { hashingService } from '../../services/hashingService.js';
 
 const router = express.Router();
 
@@ -66,40 +67,88 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
-      evidenceId, caseId, type, fileName, uploadedBy, role,
-      location, fileHash, metadataHash, custodian, integrityStatus,
-      approvedForLegal, notes, linkedEvidenceIds, classification,
+      evidenceId, caseId, name, type, fileName, mimeType, fileSizeBytes, fileUrl,
+      uploadedBy, role, location, timestamp, fileHash, metadataHash,
+      custodian, currentCustodianName, ownerMsp, transferTargetMsp,
+      integrityStatus, lastVerifiedAt, approvedForLegal, section63CertId,
+      notes, linkedEvidenceIds, classification, riskLevel,
       sourceHash, liftingVideo, liftingVideoHash, visibility,
+      blockchainTxId, onChainStatus,
       actorId, actorRole,
     } = req.body || {};
 
     const id = evidenceId || `EV-${Date.now().toString(36).toUpperCase()}`;
-    const resolvedClass = (sourceHash && liftingVideo) ? 'PRIMARY' : (classification || 'SECONDARY');
+    const resolvedClass = (sourceHash && (liftingVideo || liftingVideoHash)) ? 'PRIMARY' : (classification || 'SECONDARY');
+    const resolvedRisk = (riskLevel || 'LOW').toUpperCase();
+    const resolvedType = (type || 'IMAGE').toUpperCase();
+
+    const computedMetaHash = metadataHash || hashingService.hashMetadata({
+      caseId,
+      evidenceId: id,
+      name: name || fileName || id,
+      type: resolvedType,
+      location: location || 'Crime Scene',
+      submittedBy: uploadedBy || actorId || 'Unknown',
+      fileHash: fileHash || '',
+      sourceHash: sourceHash || fileHash || '',
+    });
 
     const dbClient = await getClient();
     try {
       await dbClient.query('BEGIN');
 
+      let custodianName = currentCustodianName;
+      if (!custodianName && (uploadedBy || actorId)) {
+        const userRes = await dbClient.query('SELECT name FROM users WHERE user_id = $1', [uploadedBy || actorId]);
+        if (userRes.rows.length > 0) {
+          custodianName = userRes.rows[0].name;
+        }
+      }
+
       const { rows } = await dbClient.query(
         `INSERT INTO evidence
-           (evidence_id, case_id, name, file_name, type, file_url, file_hash, metadata_hash,
-            source_hash, lifting_video_url, lifting_video_hash,
-            classification, integrity_status, approved_for_legal, notes,
-            uploaded_by, current_custodian_id, owner_msp, collected_location, linked_evidence_ids,
-            on_chain_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+           (evidence_id, case_id, name, file_name, type, mime_type, file_size_bytes, file_url,
+            file_hash, metadata_hash, source_hash, lifting_video_url, lifting_video_hash,
+            classification, risk_level, integrity_status, last_verified_at, approved_for_legal,
+            section63_cert_id, notes, uploaded_by, current_custodian_id, current_custodian_name,
+            owner_msp, transfer_target_msp, collected_location, collected_timestamp,
+            linked_evidence_ids, blockchain_tx_id, on_chain_status, version, is_deleted,
+            created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,NOW(),NOW())
          RETURNING *`,
         [
-          id, caseId, fileName || id, fileName || id, (type || 'IMAGE').toUpperCase(),
-          '', fileHash || '', metadataHash || '',
-          sourceHash || null, liftingVideo || null, liftingVideoHash || null,
-          resolvedClass, integrityStatus || 'NOT_CHECKED', approvedForLegal || false,
+          id,
+          caseId,
+          name || fileName || id,
+          fileName || id,
+          resolvedType,
+          mimeType || null,
+          fileSizeBytes ? parseInt(fileSizeBytes, 10) : null,
+          fileUrl || '',
+          fileHash || '',
+          computedMetaHash,
+          sourceHash || fileHash || null,
+          liftingVideo || null,
+          liftingVideoHash || null,
+          resolvedClass,
+          resolvedRisk,
+          integrityStatus || 'NOT_CHECKED',
+          lastVerifiedAt ? new Date(lastVerifiedAt) : null,
+          approvedForLegal === true,
+          section63CertId || null,
           notes || null,
           uploadedBy || actorId || null,
           custodian || uploadedBy || actorId || null,
-          'PoliceMSP', location || null,
+          custodianName || null,
+          ownerMsp || 'PoliceMSP',
+          transferTargetMsp || null,
+          location || 'Crime Scene',
+          timestamp ? new Date(timestamp) : new Date(),
           JSON.stringify(linkedEvidenceIds || []),
-          'BLOCKCHAIN_PENDING',
+          blockchainTxId || null,
+          onChainStatus || 'BLOCKCHAIN_PENDING',
+          1,
+          false,
         ]
       );
 
@@ -108,7 +157,12 @@ router.post('/', async (req, res) => {
         `INSERT INTO evidence_visibility
            (evidence_id, is_restricted, allowed_roles, allowed_designations, allowed_user_ids)
          VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (evidence_id) DO NOTHING`,
+         ON CONFLICT (evidence_id) DO UPDATE SET
+           is_restricted = EXCLUDED.is_restricted,
+           allowed_roles = EXCLUDED.allowed_roles,
+           allowed_designations = EXCLUDED.allowed_designations,
+           allowed_user_ids = EXCLUDED.allowed_user_ids,
+           updated_at = NOW()`,
         [
           id,
           v.isRestricted || false,
@@ -118,7 +172,7 @@ router.post('/', async (req, res) => {
         ]
       );
 
-      // Enqueue to Outbox
+      // Enqueue to Blockchain Outbox (matching Fabric CreateEvidence smart contract)
       await dbClient.query(
         `INSERT INTO blockchain_outbox
            (event_type, entity_id, case_id, payload, status)
@@ -132,8 +186,8 @@ router.post('/', async (req, res) => {
             caseId,
             sourceHash: sourceHash || fileHash || '',
             serverHash: fileHash || '',
-            metadataHash: metadataHash || '',
-            riskLevel: 'LOW',
+            metadataHash: computedMetaHash,
+            riskLevel: resolvedRisk,
             actorId: actorId || uploadedBy || 'SYSTEM',
             actorRole: actorRole || role || 'POLICE',
           }),
@@ -149,7 +203,7 @@ router.post('/', async (req, res) => {
         userRole: actorRole || role,
         action: 'UPLOAD',
         source: 'WEB',
-        details: { fileName, fileType: type, hash: fileHash, location, metadataHash },
+        details: { fileName, fileType: resolvedType, hash: fileHash, location, metadataHash: computedMetaHash, classification: resolvedClass, riskLevel: resolvedRisk },
       });
 
       res.status(201).json({

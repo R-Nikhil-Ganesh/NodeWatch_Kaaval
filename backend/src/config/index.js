@@ -39,13 +39,34 @@ export const config = {
     asLocalhost: process.env.FABRIC_AS_LOCALHOST !== 'false',
     connectionProfilePath: path.resolve(
       __dirname,
-      process.env.FABRIC_CCP_PATH || '../../../backend_mobile/connection-org1-with-org2.json'
+      process.env.FABRIC_CCP_PATH || './connection-3org.json'
     ),
     walletPath: path.resolve(
       __dirname,
-      process.env.FABRIC_WALLET_PATH || '../../../backend_mobile/wallet'
+      process.env.FABRIC_WALLET_PATH || '../../wallet'
     ),
     defaultIdentity: process.env.FABRIC_USER || 'appUser',
+    orgs: {
+      police: {
+        mspId: process.env.FABRIC_POLICE_MSPID || 'Org1MSP',
+        peer: process.env.FABRIC_POLICE_PEER || 'peer0.org1.example.com:7051',
+        ca: process.env.FABRIC_POLICE_CA || 'https://localhost:7054',
+        role: 'POLICE',
+      },
+      forensics: {
+        mspId: process.env.FABRIC_FORENSICS_MSPID || 'Org2MSP',
+        peer: process.env.FABRIC_FORENSICS_PEER || 'peer0.org2.example.com:9051',
+        ca: process.env.FABRIC_FORENSICS_CA || 'https://localhost:8054',
+        role: 'FORENSICS',
+      },
+      court: {
+        mspId: process.env.FABRIC_COURT_MSPID || 'Org3MSP',
+        peer: process.env.FABRIC_COURT_PEER || 'peer0.org3.example.com:11051',
+        ca: process.env.FABRIC_COURT_CA || 'https://localhost:11054',
+        role: 'LEGAL',
+      },
+    },
+    endorsementPolicy: process.env.FABRIC_ENDORSEMENT_POLICY || "OutOf(2, 'Org1MSP.peer', 'Org2MSP.peer', 'Org3MSP.peer')",
   },
 
   outbox: {

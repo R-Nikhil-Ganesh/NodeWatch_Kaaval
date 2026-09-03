@@ -41,6 +41,19 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Live Terminal HTTP Request Logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const url = req.originalUrl || req.url;
+    if (!url.startsWith('/health')) {
+      console.log(`🌐 [HTTP] ${req.method} ${url} → ${res.statusCode} (${duration}ms)`);
+    }
+  });
+  next();
+});
+
 // ---------------------------------------------------------------------------
 // 1. MOBILE DOMAIN: /api/mobile/*
 // ---------------------------------------------------------------------------
@@ -70,6 +83,7 @@ app.use('/api/cases', webCaseRoutes);
 app.use('/api/evidence', webEvidenceRoutes);
 app.use('/api/evidence', webSection63Routes);
 app.use('/api/documents', webDocumentRoutes);
+app.use('/api/forensics', webForensicsRoutes);
 app.use('/api/logs', webAuditRoutes);
 app.use('/cases', mobileCaseRoutes);
 app.use('/', mobileEvidenceRoutes);
@@ -99,6 +113,41 @@ app.get('/health/fabric', async (req, res) => {
   res.json({
     status: fabricHealth.connected ? 'ok' : 'degraded',
     fabric: fabricHealth,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/network/endorsement-policy', (req, res) => {
+  res.json({
+    status: 'ok',
+    network: 'Hyperledger Fabric 3-Organization Consortium',
+    endorsementPolicy: config.fabric.endorsementPolicy,
+    endorsementMode: 'OUT_OF_2_ORGS_REQUIRED',
+    channel: config.fabric.channelName,
+    chaincode: config.fabric.chaincodeName,
+    organizations: {
+      police: {
+        name: 'Law Enforcement / Police',
+        mspId: config.fabric.orgs.police.mspId,
+        peer: config.fabric.orgs.police.peer,
+        ca: config.fabric.orgs.police.ca,
+        role: config.fabric.orgs.police.role,
+      },
+      forensics: {
+        name: 'Forensic Science Laboratory (FSL)',
+        mspId: config.fabric.orgs.forensics.mspId,
+        peer: config.fabric.orgs.forensics.peer,
+        ca: config.fabric.orgs.forensics.ca,
+        role: config.fabric.orgs.forensics.role,
+      },
+      court: {
+        name: 'Judiciary / Court',
+        mspId: config.fabric.orgs.court.mspId,
+        peer: config.fabric.orgs.court.peer,
+        ca: config.fabric.orgs.court.ca,
+        role: config.fabric.orgs.court.role,
+      }
+    },
     timestamp: new Date().toISOString(),
   });
 });

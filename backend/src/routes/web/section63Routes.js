@@ -7,7 +7,7 @@ const router = express.Router();
 router.post('/:id/section63', async (req, res) => {
   try {
     const { id } = req.params;
-    const { certificateRef, actorId, actorRole } = req.body || {};
+    const { certificateRef, actorId, actorRole, deviceSpecification, certificatePdfUrl } = req.body || {};
 
     const { rows: evRows } = await query(`SELECT * FROM evidence WHERE evidence_id = $1`, [id]);
     if (!evRows.length) return res.status(404).json({ message: 'Evidence not found' });
@@ -23,11 +23,11 @@ router.post('/:id/section63', async (req, res) => {
       const { rows: certRows } = await dbClient.query(
         `INSERT INTO section63_certificates
            (certificate_ref, evidence_id, case_id, issued_by_user_id, certifying_designation,
-            hash_algorithm, verified_hash)
-         VALUES ($1,$2,$3,$4,$5,'SHA-256',$6)
+            device_specification, hash_algorithm, verified_hash, certificate_pdf_url)
+         VALUES ($1,$2,$3,$4,$5,$6,'SHA-256',$7,$8)
          ON CONFLICT (certificate_ref) DO UPDATE SET issued_at = NOW()
          RETURNING *`,
-        [certificateRef, id, ev.case_id, actorId, designation, ev.file_hash]
+        [certificateRef, id, ev.case_id, actorId, designation, deviceSpecification || null, ev.file_hash, certificatePdfUrl || null]
       );
       cert = certRows[0];
 

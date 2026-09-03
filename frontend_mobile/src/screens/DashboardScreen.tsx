@@ -6,7 +6,6 @@ import { useApp } from '../context/AppContext';
 import { RootStackParamList } from '../types';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { COLORS, SIZES } from '../constants/theme';
-import { USERS } from '../data/mockData';
 
 type DashboardProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
 
@@ -20,8 +19,8 @@ export default function DashboardScreen({ navigation }: { navigation: DashboardP
     }
   }, [error]);
 
-  // Admin Stats Calculation (safe fallback from context users or mock list)
-  const allUsers = users?.length ? users : (USERS || []);
+  // Admin Stats Calculation
+  const allUsers = users || [];
   const investigatorCount = allUsers.filter(u => {
     const r = (u.role || '').toLowerCase();
     return r === 'investigator' || r === 'police';

@@ -211,12 +211,7 @@ export default function EvidenceScreen({ route, navigation }: Props) {
   const analyzeDocument = async (asset: ImagePicker.ImagePickerAsset) => {
     Alert.alert("Syncing with Blockchain", "Registering evidence with immutable ledger...");
     
-    const mockLocations = [
-      "13.0827° N, 80.2707° E (Crime Scene)",
-      "13.0850° N, 80.2100° E (Forensic Lab)",
-      "12.9716° N, 79.1585° E (Transit)"
-    ];
-    const randomLoc = mockLocations[Math.floor(Math.random() * mockLocations.length)];
+    const location = activeCase?.location || 'Crime Scene';
 
     setLoading(true);
     try {
@@ -243,7 +238,7 @@ export default function EvidenceScreen({ route, navigation }: Props) {
         name: asset.fileName || 'Scene Photo / Document',
         // Hint mime for upload
         mimeType: 'image/jpeg',
-        location: randomLoc
+        location
       };
       
       // Upload to backend (will persist file and metadata) and register in context

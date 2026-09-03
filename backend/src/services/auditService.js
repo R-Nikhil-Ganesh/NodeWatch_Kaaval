@@ -3,7 +3,8 @@ import { hashingService } from './hashingService.js';
 
 export const auditService = {
   /**
-   * Log an audit event with deterministic tamper-evident metadata digest
+   * Log an audit event with deterministic tamper-evident metadata digest.
+   * Gracefully handles unassociated or deleted case/evidence/user references.
    */
   async log({
     caseId = null,
@@ -16,11 +17,33 @@ export const auditService = {
     source = 'WEB', // 'WEB' | 'MOBILE'
     details = {},
   }) {
+    // 1. Sanitize incoming foreign key identifiers
+    let validCaseId = caseId && typeof caseId === 'string' && caseId.trim() !== '' && caseId !== 'undefined' && caseId !== 'null' ? caseId.trim() : null;
+    let validEvidenceId = evidenceId && typeof evidenceId === 'string' && evidenceId.trim() !== '' && evidenceId !== 'undefined' && evidenceId !== 'null' ? evidenceId.trim() : null;
+    let validUserId = userId && typeof userId === 'string' && userId.trim() !== '' && userId !== 'undefined' && userId !== 'null' ? userId.trim() : null;
+
+    // 2. Validate foreign key existence in PostgreSQL to avoid constraint violations
+    if (validCaseId) {
+      const { rows } = await query('SELECT 1 FROM cases WHERE case_id = $1', [validCaseId]).catch(() => ({ rows: [] }));
+      if (!rows.length) validCaseId = null;
+    }
+
+    if (validEvidenceId) {
+      const { rows } = await query('SELECT 1 FROM evidence WHERE evidence_id = $1', [validEvidenceId]).catch(() => ({ rows: [] }));
+      if (!rows.length) validEvidenceId = null;
+    }
+
+    if (validUserId) {
+      const { rows } = await query('SELECT 1 FROM users WHERE user_id = $1', [validUserId]).catch(() => ({ rows: [] }));
+      if (!rows.length) validUserId = null;
+    }
+
+    // 3. Compute deterministic cryptographic metadata hash
     const metadataHash = hashingService.hashMetadata({
-      caseId,
-      evidenceId,
+      caseId: validCaseId || caseId,
+      evidenceId: validEvidenceId || evidenceId,
       action,
-      userId,
+      userId: validUserId || userId,
       userRole,
       userOrg,
       result,
@@ -37,10 +60,10 @@ export const auditService = {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          RETURNING *`,
         [
-          caseId,
-          evidenceId,
+          validCaseId,
+          validEvidenceId,
           action,
-          userId,
+          validUserId,
           userRole,
           userOrg,
           result,

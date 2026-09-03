@@ -6,8 +6,8 @@ echo ================================================
 echo Deploying Evidence Chaincode with Endorsement Policy
 echo ================================================
 echo.
-echo Policy: AND('Org1MSP.peer','Org2MSP.peer')
-echo This requires BOTH organizations to approve transactions
+echo Policy: OutOf(2, 'Org1MSP.peer', 'Org2MSP.peer', 'Org3MSP.peer')
+echo This requires at least TWO out of three consortium organizations (Police, FSL, Court) to approve transactions
 echo.
 
 REM Check if running in WSL/Git Bash

@@ -1,45 +1,48 @@
 @echo off
-REM Quick Start Script for ChainGuard
-REM This script helps you start both frontend and backend
+REM Quick Start Script for Kaaval / ChainGuard
+REM This script starts the unified backend and both frontends
 
 echo ========================================
-echo     ChainGuard Integration Setup
+echo     Kaaval Digital Custody Setup
 echo ========================================
 echo.
 
 REM Check if we're in the right directory
-if not exist "Kaaval_Backend" (
+if not exist "backend" (
     echo Error: Please run this script from the chain_of_custody root directory
     pause
     exit /b 1
 )
 
-echo Starting both services...
+echo Starting services...
 echo.
 
-REM Open new terminals for backends and frontends
-echo Starting Mobile Backend (Kaaval_Backend - Port 3000)...
-start cmd /k "cd Kaaval_Backend && set PORT=3000&& set FABRIC_HOST=localhost&& set FABRIC_TLS_OVERRIDE=peer0.org1.example.com&& set FABRIC_IDENTITY=appUser&& node app.js"
-
-echo Starting Central Web Backend (backend_web - Port 4000)...
-start cmd /k "cd backend_web && set PORT=4000&& npm run start"
+REM 1. Start Unified Backend (Port 4000)
+echo Starting Unified Backend (Port 4000 - Serves Web & Mobile)...
+start cmd /k "cd backend && set PORT=4000&& node src/server.js"
 
 timeout /t 3 /nobreak
 
-echo Starting Mobile Frontend (Expo)...
-start cmd /k "cd Kaaval_Frontend && npm start"
-
+REM 2. Start Web Frontend (Port 5173)
 echo Starting Web Frontend (Vite)...
 start cmd /k "cd frontend_web && npm run dev"
+
+REM 3. Start Mobile Frontend (Expo)
+if exist "frontend_mobile" (
+    echo Starting Mobile Frontend (Expo)...
+    start cmd /k "cd frontend_mobile && npm start"
+) else if exist "Kaaval_Frontend" (
+    echo Starting Mobile Frontend (Expo)...
+    start cmd /k "cd Kaaval_Frontend && npm start"
+)
 
 echo.
 echo ========================================
 echo All services starting:
 echo.
-echo Mobile Backend:  http://localhost:3000
-echo Central Backend: http://localhost:4000
-echo Web Frontend:    http://localhost:5173
-echo Mobile App:      Follow Expo CLI instructions
+echo Unified Backend:  http://localhost:4000 (Web + Mobile APIs)
+echo Web Frontend:     http://localhost:5173
+echo Mobile App:       Follow Expo CLI instructions
 echo.
 echo Keep all terminal windows open.
 echo ========================================
