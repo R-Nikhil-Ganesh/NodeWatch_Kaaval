@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Download, FileArchive, FileText, Gavel, LucideIcon, ScrollText, Stamp } from 'lucide-react';
+import { AlertTriangle, Download, FileArchive, FileText, Gavel, Loader2, LucideIcon, ScrollText, Stamp } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
 import { Badge, Card, Drawer, EmptyState, Select } from '../../components/ui/Primitives';
 import { CustodyTrail } from '../../components/case/CustodyTrail';
-import { getFilesForCase } from '../../data/mockData';
+import { fetchCaseFiles } from '../../services/api';
+import { useAsync } from '../../hooks/useAsync';
 import { CaseFile, CaseFileType } from '../../types';
 import { formatDate, formatFileSize } from '../../utils/format';
 
@@ -23,13 +24,13 @@ const TYPE_ICON: Record<CaseFileType, LucideIcon> = {
 
 export const CaseFilesPage = () => {
   const { courtCase } = useCaseContext();
-  const files = getFilesForCase(courtCase.caseId);
+  const { data: files, loading, error } = useAsync(() => fetchCaseFiles(courtCase.caseId), [courtCase.caseId]);
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [selected, setSelected] = useState<CaseFile | null>(null);
 
-  const types = Array.from(new Set(files.map((f) => f.type)));
+  const types = Array.from(new Set((files || []).map((f) => f.type)));
   const visible = useMemo(
-    () => (typeFilter === 'ALL' ? files : files.filter((f) => f.type === typeFilter)),
+    () => (typeFilter === 'ALL' ? (files || []) : (files || []).filter((f) => f.type === typeFilter)),
     [files, typeFilter]
   );
 
@@ -41,14 +42,20 @@ export const CaseFilesPage = () => {
           <p className="text-sm text-ink-500 mt-1">Every document filed in this case, from FIR to court orders — each tracked by chain of custody.</p>
         </div>
         <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-64">
-          <option value="ALL">All Document Types ({files.length})</option>
+          <option value="ALL">All Document Types ({(files || []).length})</option>
           {types.map((t) => (
-            <option key={t} value={t}>{t} ({files.filter((f) => f.type === t).length})</option>
+            <option key={t} value={t}>{t} ({(files || []).filter((f) => f.type === t).length})</option>
           ))}
         </Select>
       </div>
 
-      {visible.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-ink-500 gap-2">
+          <Loader2 size={18} className="animate-spin" /> Loading case files…
+        </div>
+      ) : error ? (
+        <Card><EmptyState icon={<AlertTriangle size={40} />} title="Could not load case files" description={error} /></Card>
+      ) : visible.length === 0 ? (
         <Card><EmptyState icon={<FileText size={40} />} title="No documents in this category" /></Card>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">

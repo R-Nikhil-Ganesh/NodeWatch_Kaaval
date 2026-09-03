@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Download, ScrollText, Search } from 'lucide-react';
+import { AlertTriangle, Download, Loader2, ScrollText, Search } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
 import { Avatar, Badge, Card, EmptyState, Input, Select, Table } from '../../components/ui/Primitives';
-import { getLogsForCase } from '../../data/mockData';
+import { fetchAuditLogs } from '../../services/api';
+import { useAsync } from '../../hooks/useAsync';
 import { AuditAction } from '../../types';
 import { formatDateTime, initials } from '../../utils/format';
 
@@ -38,14 +39,14 @@ const ACTION_LABEL: Record<AuditAction, string> = {
 
 export const AuditLogsPage = () => {
   const { courtCase } = useCaseContext();
-  const logs = getLogsForCase(courtCase.caseId);
+  const { data: logs, loading, error } = useAsync(() => fetchAuditLogs(courtCase.caseId), [courtCase.caseId]);
   const [query, setQuery] = useState('');
   const [actionFilter, setActionFilter] = useState('ALL');
 
-  const actions = Array.from(new Set(logs.map((l) => l.action)));
+  const actions = Array.from(new Set((logs || []).map((l) => l.action)));
 
   const visible = useMemo(() => {
-    return logs.filter((l) => {
+    return (logs || []).filter((l) => {
       const matchesQuery = query.trim() === '' ||
         l.actorName.toLowerCase().includes(query.toLowerCase()) ||
         l.targetLabel.toLowerCase().includes(query.toLowerCase());
@@ -83,7 +84,13 @@ export const AuditLogsPage = () => {
       </div>
 
       <Card padded={false}>
-        {visible.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-ink-500 gap-2">
+            <Loader2 size={18} className="animate-spin" /> Loading audit logs…
+          </div>
+        ) : error ? (
+          <EmptyState icon={<AlertTriangle size={40} />} title="Could not load audit logs" description={error} />
+        ) : visible.length === 0 ? (
           <EmptyState icon={<ScrollText size={40} />} title="No matching audit entries" />
         ) : (
           <Table headers={['Timestamp', 'Actor', 'Action', 'Target', 'Device / IP']}>

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 200, 1000);
     const { caseId, evidenceId } = req.query;
 
-    let sql = `SELECT l.*, u.name AS user_name FROM audit_logs l LEFT JOIN users u ON l.user_id = u.user_id WHERE 1=1`;
+    let sql = `SELECT l.*, u.name AS user_name, u.designation AS user_designation FROM audit_logs l LEFT JOIN users u ON l.user_id = u.user_id WHERE 1=1`;
     const params = [];
     if (caseId) {
       params.push(caseId);

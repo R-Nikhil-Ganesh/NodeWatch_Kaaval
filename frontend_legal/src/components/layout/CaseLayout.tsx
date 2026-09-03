@@ -1,26 +1,54 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useOutletContext, useParams } from 'react-router-dom';
-import { FileQuestion } from 'lucide-react';
+import { FileQuestion, Loader2 } from 'lucide-react';
 import { Header } from './Header';
 import { CaseSidebar } from './CaseSidebar';
 import { Footer } from './Footer';
-import { getCaseById } from '../../data/mockData';
 import { EmptyState } from '../ui/Primitives';
 import { CourtCase } from '../../types';
+import { useAsync } from '../../hooks/useAsync';
+import { fetchCase, recordCaseView } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+
+const ShellWithMessage = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen bg-paper-50 flex flex-col">
+    <Header />
+    <div id="main-content" className="max-w-[1400px] mx-auto px-6 py-8 flex-1 w-full">{children}</div>
+    <Footer variant="slim" />
+  </div>
+);
 
 export const CaseLayout = () => {
   const { caseId } = useParams<{ caseId: string }>();
-  const courtCase = caseId ? getCaseById(caseId) : undefined;
+  const { user } = useAuth();
+  const { data: courtCase, loading, error } = useAsync(() => fetchCase(caseId!), [caseId]);
 
-  if (!courtCase) {
+  useEffect(() => {
+    if (courtCase && user) {
+      recordCaseView(courtCase.caseId, user.id, 'LEGAL');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courtCase?.caseId]);
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-paper-50 flex flex-col">
-        <Header />
-        <div id="main-content" className="max-w-[1400px] mx-auto px-6 py-8 flex-1 w-full">
-          <EmptyState icon={<FileQuestion size={40} />} title="Case not found" description={`No case exists with id "${caseId}".`} />
+      <ShellWithMessage>
+        <div className="flex items-center justify-center py-20 text-ink-500 gap-2">
+          <Loader2 size={18} className="animate-spin" /> Loading case…
         </div>
-        <Footer variant="slim" />
-      </div>
+      </ShellWithMessage>
+    );
+  }
+
+  if (error || !courtCase) {
+    return (
+      <ShellWithMessage>
+        <EmptyState
+          icon={<FileQuestion size={40} />}
+          title="Case not found"
+          description={error || `No case exists with id "${caseId}".`}
+        />
+      </ShellWithMessage>
     );
   }
 

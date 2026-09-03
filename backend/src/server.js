@@ -23,6 +23,9 @@ import webForensicsRoutes from './routes/web/forensicsRoutes.js';
 import webDocumentRoutes from './routes/web/documentRoutes.js';
 import webAuditRoutes from './routes/web/auditRoutes.js';
 
+// Legal Route Imports
+import legalCaseRoutes from './routes/legal/caseRoutes.js';
+
 const app = express();
 
 // Middleware
@@ -62,7 +65,21 @@ app.use('/api/web/documents', webDocumentRoutes);
 app.use('/api/web/audit/logs', webAuditRoutes);
 
 // ---------------------------------------------------------------------------
-// 3. COMPATIBILITY ALIASES (Direct /api/* fallback for existing frontend)
+// 3. LEGAL DOMAIN: /api/legal/* (Court Management System frontend)
+// Auth/users/evidence/documents/audit reuse the web domain's routers as-is —
+// same users table (LEGAL role), same evidence/document/audit_logs tables.
+// Only cases/hearings get a legal-specific router for the richer court schema.
+// ---------------------------------------------------------------------------
+app.use('/api/legal/auth', webAuthRoutes);
+app.use('/api/legal/users', webUserRoutes);
+app.use('/api/legal/cases', legalCaseRoutes);
+app.use('/api/legal/evidence', webEvidenceRoutes);
+app.use('/api/legal/evidence', webSection63Routes);
+app.use('/api/legal/documents', webDocumentRoutes);
+app.use('/api/legal/audit/logs', webAuditRoutes);
+
+// ---------------------------------------------------------------------------
+// 4. COMPATIBILITY ALIASES (Direct /api/* fallback for existing frontend)
 // ---------------------------------------------------------------------------
 app.use('/api/auth', webAuthRoutes);
 app.use('/api/users', webUserRoutes);
@@ -76,7 +93,7 @@ app.use('/', mobileEvidenceRoutes);
 app.use('/api/sync', mobileSyncRoutes);
 
 // ---------------------------------------------------------------------------
-// 4. HEALTH & DIAGNOSTIC ENDPOINTS
+// 5. HEALTH & DIAGNOSTIC ENDPOINTS
 // ---------------------------------------------------------------------------
 app.get('/health', async (req, res) => {
   try {
@@ -109,6 +126,7 @@ app.listen(config.port, () => {
   console.log(`🛡️  KAAVAL UNIFIED BACKEND RUNNING ON PORT ${config.port}`);
   console.log(`📱 Mobile Routes:   http://localhost:${config.port}/api/mobile/*`);
   console.log(`💻 Web Routes:      http://localhost:${config.port}/api/web/*`);
+  console.log(`⚖️  Legal Routes:    http://localhost:${config.port}/api/legal/*`);
   console.log(`🗄️  PostgreSQL:      ${config.database.url}`);
   console.log(`📦 MinIO S3 Vault:  ${config.storage.endpoint} [${config.storage.bucket}]`);
   console.log(`🔗 Fabric Outbox:   Polling every ${config.outbox.pollIntervalMs}ms`);

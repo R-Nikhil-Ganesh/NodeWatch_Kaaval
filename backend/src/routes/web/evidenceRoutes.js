@@ -24,6 +24,7 @@ router.get('/', async (req, res) => {
               e.blockchain_tx_id AS "blockchainTxId",
               ev.is_restricted, ev.allowed_roles, ev.allowed_designations, ev.allowed_user_ids,
               u.name AS uploaded_by_name,
+              u.designation AS uploaded_by_designation,
               c.name AS custodian_display_name,
               s.certificate_ref AS "section63Certificate"
        FROM evidence e

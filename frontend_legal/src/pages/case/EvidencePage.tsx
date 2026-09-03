@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { Box, FileText, HardDrive, Loader2, MapPin, Mic, ShieldAlert, ShieldCheck, ShieldQuestion, Video } from 'lucide-react';
+import { AlertTriangle, Box, FileText, HardDrive, Loader2, MapPin, Mic, ShieldAlert, ShieldCheck, ShieldQuestion, Video } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
 import { Badge, Card, Drawer, EmptyState } from '../../components/ui/Primitives';
 import { CustodyTrail } from '../../components/case/CustodyTrail';
-import { getEvidenceForCase, getFilesForCase } from '../../data/mockData';
+import { fetchCaseFiles, fetchEvidence } from '../../services/api';
+import { useAsync } from '../../hooks/useAsync';
 import { EvidenceItem, IntegrityStatus } from '../../types';
 import { formatDate, formatDateTime, shortHash } from '../../utils/format';
 import { integrityTone } from '../../utils/caseMeta';
@@ -25,15 +26,15 @@ const IntegrityBadge = ({ status }: { status: IntegrityStatus }) => {
 
 export const EvidencePage = () => {
   const { courtCase } = useCaseContext();
-  const evidence = getEvidenceForCase(courtCase.caseId);
-  const files = getFilesForCase(courtCase.caseId);
+  const { data: evidence, loading, error } = useAsync(() => fetchEvidence(courtCase.caseId), [courtCase.caseId]);
+  const { data: files } = useAsync(() => fetchCaseFiles(courtCase.caseId), [courtCase.caseId]);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [selected, setSelected] = useState<EvidenceItem | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<string | null>(null);
 
   const visible = useMemo(
-    () => (filter === 'ALL' ? evidence : evidence.filter((e) => e.kind === filter)),
+    () => (filter === 'ALL' ? (evidence || []) : (evidence || []).filter((e) => e.kind === filter)),
     [evidence, filter]
   );
 
@@ -71,12 +72,18 @@ export const EvidencePage = () => {
               filter === f ? 'border-saffron-500 text-navy-900' : 'border-transparent text-ink-500 hover:text-navy-700'
             }`}
           >
-            {f === 'ALL' ? `All (${evidence.length})` : f === 'PHYSICAL' ? `Physical (${evidence.filter((e) => e.kind === 'PHYSICAL').length})` : `Digital (${evidence.filter((e) => e.kind === 'DIGITAL').length})`}
+            {f === 'ALL' ? `All (${(evidence || []).length})` : f === 'PHYSICAL' ? `Physical (${(evidence || []).filter((e) => e.kind === 'PHYSICAL').length})` : `Digital (${(evidence || []).filter((e) => e.kind === 'DIGITAL').length})`}
           </button>
         ))}
       </div>
 
-      {visible.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-ink-500 gap-2">
+          <Loader2 size={18} className="animate-spin" /> Loading evidence…
+        </div>
+      ) : error ? (
+        <Card><EmptyState icon={<AlertTriangle size={40} />} title="Could not load evidence" description={error} /></Card>
+      ) : visible.length === 0 ? (
         <Card><EmptyState icon={<Box size={40} />} title="No evidence in this category" /></Card>
       ) : (
         <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -201,7 +208,7 @@ export const EvidencePage = () => {
 
             {selected.section63CertificateId && (
               <div className="bg-ashoka-50 border border-ashoka-100 rounded-sm p-3.5 text-sm text-ashoka-800">
-                Linked to <span className="font-medium">{files.find((f) => f.fileId === selected.section63CertificateId)?.title ?? 'Section 63 BSA Certificate'}</span> in Case Files.
+                Linked to <span className="font-medium">{(files || []).find((f) => f.fileId === selected.section63CertificateId)?.title ?? 'Section 63 BSA Certificate'}</span> in Case Files.
               </div>
             )}
 

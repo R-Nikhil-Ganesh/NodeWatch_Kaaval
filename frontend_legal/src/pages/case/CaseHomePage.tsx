@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { CalendarCheck, CalendarClock, CalendarPlus, CheckCircle2, Gavel, User2, XCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, CalendarCheck, CalendarClock, CalendarPlus, CheckCircle2, Gavel, Loader2, User2, XCircle } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
-import { Badge, Card, DescriptionRow, Select } from '../../components/ui/Primitives';
+import { Badge, Card, DescriptionRow, EmptyState, Select } from '../../components/ui/Primitives';
 import { CaseStageStepper } from '../../components/case/CaseStageStepper';
-import { getHearingsForCase } from '../../data/mockData';
+import { fetchHearings } from '../../services/api';
+import { useAsync } from '../../hooks/useAsync';
 import { CASE_STAGE_LABEL, CaseStage } from '../../types';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { outcomeLabel, outcomeTone, stageTone } from '../../utils/caseMeta';
@@ -16,10 +17,16 @@ const AttendanceChip = ({ present, label }: { present: boolean; label: string })
 
 export const CaseHomePage = () => {
   const { courtCase } = useCaseContext();
-  const hearings = getHearingsForCase(courtCase.caseId);
-  const mostRecent = hearings[hearings.length - 1];
-  const [selectedHearingId, setSelectedHearingId] = useState(mostRecent?.hearingId ?? '');
-  const selectedHearing = hearings.find((h) => h.hearingId === selectedHearingId) ?? mostRecent;
+  const { data: hearings, loading, error } = useAsync(() => fetchHearings(courtCase.caseId), [courtCase.caseId]);
+  const [selectedHearingId, setSelectedHearingId] = useState('');
+
+  useEffect(() => {
+    if (hearings && hearings.length) {
+      setSelectedHearingId(hearings[hearings.length - 1].hearingId);
+    }
+  }, [hearings]);
+
+  const selectedHearing = (hearings || []).find((h) => h.hearingId === selectedHearingId) ?? (hearings || [])[hearings ? hearings.length - 1 : 0];
   const isDisposed = courtCase.stage === CaseStage.DISPOSED;
 
   return (
@@ -123,33 +130,45 @@ export const CaseHomePage = () => {
           </Card>
 
           <Card title="Hearing History">
-            <Select label="Select a hearing date" value={selectedHearingId} onChange={(e) => setSelectedHearingId(e.target.value)}>
-              {hearings.slice().reverse().map((h) => (
-                <option key={h.hearingId} value={h.hearingId}>
-                  {formatDate(h.date)} — {h.purpose}
-                </option>
-              ))}
-            </Select>
-
-            {selectedHearing && (
-              <div className="mt-4 pt-4 border-t border-line-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Badge tone="saffron">{selectedHearing.purpose}</Badge>
-                  <p className="text-xs text-ink-500">{formatDateTime(selectedHearing.date)}</p>
-                </div>
-                <p className="text-sm text-ink-900 leading-relaxed">{selectedHearing.statement}</p>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  <AttendanceChip present={selectedHearing.attendance.prosecutor} label="Prosecutor" />
-                  <AttendanceChip present={selectedHearing.attendance.defenseCounsel} label="Defense Counsel" />
-                  <AttendanceChip present={selectedHearing.attendance.accusedPresent} label="Accused" />
-                </div>
-                <p className="text-xs text-ink-500 pt-2 border-t border-line-200">
-                  Presided by <span className="font-medium text-ink-700">{selectedHearing.judge}</span>
-                  {selectedHearing.nextHearingDate && (
-                    <> · Next hearing fixed for <span className="font-medium text-ink-700">{formatDate(selectedHearing.nextHearingDate)}</span></>
-                  )}
-                </p>
+            {loading ? (
+              <div className="flex items-center justify-center py-8 text-ink-500 gap-2 text-sm">
+                <Loader2 size={16} className="animate-spin" /> Loading hearing history…
               </div>
+            ) : error ? (
+              <EmptyState icon={<AlertTriangle size={32} />} title="Could not load hearings" description={error} />
+            ) : !hearings || hearings.length === 0 ? (
+              <EmptyState title="No hearings recorded yet" />
+            ) : (
+              <>
+                <Select label="Select a hearing date" value={selectedHearingId} onChange={(e) => setSelectedHearingId(e.target.value)}>
+                  {hearings.slice().reverse().map((h) => (
+                    <option key={h.hearingId} value={h.hearingId}>
+                      {formatDate(h.date)} — {h.purpose}
+                    </option>
+                  ))}
+                </Select>
+
+                {selectedHearing && (
+                  <div className="mt-4 pt-4 border-t border-line-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Badge tone="saffron">{selectedHearing.purpose}</Badge>
+                      <p className="text-xs text-ink-500">{formatDateTime(selectedHearing.date)}</p>
+                    </div>
+                    <p className="text-sm text-ink-900 leading-relaxed">{selectedHearing.statement}</p>
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      <AttendanceChip present={selectedHearing.attendance.prosecutor} label="Prosecutor" />
+                      <AttendanceChip present={selectedHearing.attendance.defenseCounsel} label="Defense Counsel" />
+                      <AttendanceChip present={selectedHearing.attendance.accusedPresent} label="Accused" />
+                    </div>
+                    <p className="text-xs text-ink-500 pt-2 border-t border-line-200">
+                      Presided by <span className="font-medium text-ink-700">{selectedHearing.judge}</span>
+                      {selectedHearing.nextHearingDate && (
+                        <> · Next hearing fixed for <span className="font-medium text-ink-700">{formatDate(selectedHearing.nextHearingDate)}</span></>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </div>

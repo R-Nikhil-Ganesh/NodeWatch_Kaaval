@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Button, Input } from '../components/ui/Primitives';
 import { DEMO_ACCOUNTS } from '../data/mockData';
@@ -10,7 +10,7 @@ import { Footer } from '../components/layout/Footer';
 type Stage = 'CREDENTIALS' | 'MFA';
 
 export const LoginPage = () => {
-  const { login } = useAuth();
+  const { verifyCredentials, confirmMfa } = useAuth();
   const navigate = useNavigate();
 
   const [stage, setStage] = useState<Stage>('CREDENTIALS');
@@ -18,19 +18,24 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setError('');
   }, [stage]);
 
-  const handleCredentials = (e: React.FormEvent) => {
+  const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
-    const match = DEMO_ACCOUNTS.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (!match || password !== 'password123') {
-      setError('Invalid email or password.');
-      return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await verifyCredentials(email, password);
+      setStage('MFA');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password.');
+    } finally {
+      setSubmitting(false);
     }
-    setStage('MFA');
   };
 
   const handleMfa = (e: React.FormEvent) => {
@@ -39,7 +44,7 @@ export const LoginPage = () => {
       setError('Enter the 6-digit verification code.');
       return;
     }
-    const user = login(email);
+    const user = confirmMfa();
     if (user) navigate('/home');
     else setError('Session expired. Please sign in again.');
   };
@@ -100,7 +105,10 @@ export const LoginPage = () => {
                       </button>
                     </div>
 
-                    <Button type="submit" variant="primary" size="lg" className="w-full rounded-sm">Login</Button>
+                    <Button type="submit" variant="primary" size="lg" className="w-full rounded-sm" disabled={submitting}>
+                      {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
+                      {submitting ? 'Signing in…' : 'Login'}
+                    </Button>
                   </form>
                 )}
 

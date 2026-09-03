@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronRight, FolderSearch, Search } from 'lucide-react';
+import { AlertTriangle, ChevronRight, FolderSearch, Loader2, Search } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { CaseTile } from '../components/case/CaseTile';
 import { Input, EmptyState } from '../components/ui/Primitives';
-import { CASES } from '../data/mockData';
 import { CaseStage } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useAsync } from '../hooks/useAsync';
+import { fetchCases } from '../services/api';
 
 export const HomePage = () => {
   const { user } = useAuth();
@@ -14,8 +15,10 @@ export const HomePage = () => {
   const tab = searchParams.get('tab') === 'history' ? 'history' : 'ongoing';
   const [query, setQuery] = useState('');
 
-  const ongoingCases = CASES.filter((c) => c.stage !== CaseStage.DISPOSED);
-  const historyCases = CASES.filter((c) => c.stage === CaseStage.DISPOSED);
+  const { data: cases, loading, error } = useAsync(fetchCases, []);
+
+  const ongoingCases = useMemo(() => (cases || []).filter((c) => c.stage !== CaseStage.DISPOSED), [cases]);
+  const historyCases = useMemo(() => (cases || []).filter((c) => c.stage === CaseStage.DISPOSED), [cases]);
   const activeCases = tab === 'ongoing' ? ongoingCases : historyCases;
 
   const visibleCases = useMemo(() => {
@@ -72,7 +75,13 @@ export const HomePage = () => {
         </div>
       </div>
 
-      {visibleCases.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-ink-500 gap-2">
+          <Loader2 size={18} className="animate-spin" /> Loading cases…
+        </div>
+      ) : error ? (
+        <EmptyState icon={<AlertTriangle size={40} />} title="Could not load cases" description={error} />
+      ) : visibleCases.length === 0 ? (
         <EmptyState
           icon={<FolderSearch size={40} />}
           title="No cases found"

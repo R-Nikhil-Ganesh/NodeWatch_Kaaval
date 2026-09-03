@@ -7,9 +7,13 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { caseId } = req.query;
-    const { rows } = caseId
-      ? await query(`SELECT * FROM case_documents WHERE case_id = $1 ORDER BY created_at DESC`, [caseId])
-      : await query(`SELECT * FROM case_documents ORDER BY created_at DESC`);
+    const selectSql = `
+      SELECT d.*, u.name AS uploaded_by_name
+      FROM case_documents d
+      LEFT JOIN users u ON d.uploaded_by = u.user_id
+      ${caseId ? 'WHERE d.case_id = $1' : ''}
+      ORDER BY d.created_at DESC`;
+    const { rows } = caseId ? await query(selectSql, [caseId]) : await query(selectSql);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
