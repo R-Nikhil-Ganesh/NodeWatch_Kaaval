@@ -1,0 +1,53 @@
+/* Styling ported from the standalone Legal app's global index.css, scoped
+   under .legal-app so none of it leaks into the rest of the unified app. */
+
+.legal-app {
+  -webkit-font-smoothing: antialiased;
+}
+
+.legal-app a:focus-visible,
+.legal-app button:focus-visible,
+.legal-app input:focus-visible,
+.legal-app select:focus-visible,
+.legal-app textarea:focus-visible,
+.legal-app [tabindex]:focus-visible {
+  outline: 2px solid #E8720C;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.legal-app ::selection {
+  background: #F6C088;
+  color: #0B2545;
+}
+
+.legal-app ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.legal-app ::-webkit-scrollbar-track {
+  background: #F7F8FA;
+}
+.legal-app ::-webkit-scrollbar-thumb {
+  background: #B9CCE0;
+  border-radius: 8px;
+}
+.legal-app ::-webkit-scrollbar-thumb:hover {
+  background: #8FAFCC;
+}
+
+@keyframes legalFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.legal-app .animate-fade-in {
+  animation: legalFadeIn 0.18s ease-out;
+}
+
+@keyframes legalSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.legal-app .animate-slide-in {
+  animation: legalSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}

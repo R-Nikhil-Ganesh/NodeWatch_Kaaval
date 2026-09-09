@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NodeWatch - Evidence Chain of Custody</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Serif:wght@600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -23,10 +26,78 @@
                 800: '#1e293b',
                 900: '#0f172a',
                 950: '#020617', // Added for deeper dark mode backgrounds
+              },
+              // Below: colors used only by the embedded Legal app pages
+              // (frontend_legal) — additive, namespaced under their own
+              // keys so they never touch the "gov" palette above.
+              navy: {
+                50: '#EEF2F7',
+                100: '#DCE6F0',
+                200: '#B9CCE0',
+                300: '#8FAFCC',
+                400: '#5C89AF',
+                500: '#2F6494',
+                600: '#1B4B78',
+                700: '#123B6B',
+                800: '#0E2F58',
+                900: '#0B2545',
+                950: '#071A32'
+              },
+              saffron: {
+                50: '#FDF1E6',
+                100: '#FBE0C4',
+                200: '#F6C088',
+                300: '#F1A055',
+                400: '#EC8A2E',
+                500: '#E8720C',
+                600: '#C25F09',
+                700: '#9C4C08',
+                800: '#753906',
+                900: '#4F2704'
+              },
+              ashoka: {
+                50: '#E7F3ED',
+                100: '#C7E4D6',
+                500: '#1D6F42',
+                600: '#175A35',
+                700: '#124529'
+              },
+              paper: {
+                50: '#F7F8FA',
+                100: '#EFF1F5'
+              },
+              ink: {
+                900: '#10161F',
+                700: '#333B46',
+                500: '#5B6672',
+                300: '#98A1AC'
+              },
+              line: {
+                200: '#E4E8EE',
+                300: '#D2D8E0'
+              },
+              status: {
+                pending: '#C77B00',
+                pendingBg: '#FBF1E2',
+                resolved: '#1D6F42',
+                resolvedBg: '#E7F3ED',
+                urgent: '#B3261E',
+                urgentBg: '#FBEAE9'
               }
             },
             fontFamily: {
               sans: ['Inter', 'system-ui', 'sans-serif'],
+              // Only used by the embedded Legal app pages (font-serif).
+              serif: ['"Noto Serif"', 'Georgia', 'serif']
+            },
+            // Only referenced by the embedded Legal app pages — "gov"-themed
+            // components never use shadow-card or rounded-sm, so this is
+            // additive and doesn't change any existing look.
+            boxShadow: {
+              card: '0 1px 2px rgba(11, 37, 69, 0.06), 0 1px 1px rgba(11, 37, 69, 0.04)'
+            },
+            borderRadius: {
+              sm: '6px'
             }
           }
         }

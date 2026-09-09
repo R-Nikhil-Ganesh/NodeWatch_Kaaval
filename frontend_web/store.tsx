@@ -269,6 +269,10 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }
     
     localStorage.removeItem('kaaval_user');
+    // Also clear the embedded Legal app's session, seeded by bootstrapLegalSession
+    // on login, so a stale session can't linger across a different user logging in.
+    localStorage.removeItem('cms_session_user');
+    localStorage.removeItem('cms_session_token');
     setCurrentUser(null);
     setIsAuthenticated(false);
   };

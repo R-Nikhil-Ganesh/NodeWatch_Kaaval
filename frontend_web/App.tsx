@@ -12,6 +12,7 @@ import { Table, Card, Button, Input } from './components/Common';
 import { Upload, X } from 'lucide-react';
 import { ChargeSheetView } from './components/ChargeSheetView';
 import { CertificateManager } from './components/CertificateManager';
+import { LegalApp } from './legal/LegalApp';
 
 const UserProfileModal = ({ 
   user, 
@@ -145,7 +146,7 @@ const UserProfileModal = ({
 };
 
 const Main = () => {
-  const { currentUser, logs, isAuthenticated, updateUser } = useStore();
+  const { currentUser, logs, isAuthenticated, updateUser, logout } = useStore();
   const [view, setView] = useState('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   
@@ -179,6 +180,13 @@ const Main = () => {
   // If not authenticated, show Login page
   if (!isAuthenticated || !currentUser) {
       return <Login />;
+  }
+
+  // LEGAL users get the dedicated Court Management System pages ported from
+  // the standalone Legal app (its own layout/theme, kept as-is for now) —
+  // bypass this app's sidebar Layout and dashboards entirely for that role.
+  if (currentUser.role === UserRole.LEGAL) {
+      return <LegalApp onLogout={logout} />;
   }
 
   // Router Switch

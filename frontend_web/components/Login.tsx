@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { Button, Input, Card } from './Common';
 import { Shield, AlertCircle, Fingerprint, ArrowLeft, Lock } from 'lucide-react';
 import { UserRole, User } from '../types';
+import { bootstrapLegalSession } from '../legal/bootstrapLegalSession';
 
 type AuthStage = 'CREDENTIALS' | 'PIN' | 'BIOMETRIC';
 
@@ -13,7 +14,13 @@ export const Login = () => {
     // State
     const [stage, setStage] = useState<AuthStage>('CREDENTIALS');
     const [tempUser, setTempUser] = useState<User | null>(null);
-    
+    // Raw /api/auth/login response, kept alongside tempUser — a LEGAL user's
+    // row also carries judicial/bar fields (bar_judicial_id, court, etc.)
+    // that the mapped `User` shape above doesn't have room for, but the
+    // embedded Legal app needs once this login hands off to it.
+    const [tempRawUser, setTempRawUser] = useState<any>(null);
+    const [tempToken, setTempToken] = useState<string>('');
+
     // Form Inputs
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -63,6 +70,8 @@ export const Login = () => {
                     profileImage: u.profile_image_url || u.profileImage || undefined,
                 };
                 setTempUser(mappedUser);
+                setTempRawUser(u);
+                setTempToken(payload.token || '');
                 setStage('PIN');
                 return;
             }
@@ -74,6 +83,27 @@ export const Login = () => {
         }
     };
 
+    // Demo hint boxes below the form — clicking one fills the credential
+    // fields (and jumps back to the CREDENTIALS stage) instead of just
+    // displaying the values for manual copy-paste.
+    const fillDemoCredentials = (demoEmail: string, demoPassword: string) => {
+        setEmail(demoEmail);
+        setPassword(demoPassword);
+        setStage('CREDENTIALS');
+        setError('');
+    };
+
+    // Hands the authenticated user off to the rest of the app. For LEGAL
+    // users this also seeds the embedded Legal app's own session storage
+    // (see bootstrapLegalSession) before the role-based redirect in App.tsx
+    // mounts it, so it never has to prompt for credentials a second time.
+    const finalizeLogin = (user: User) => {
+        if (user.role === UserRole.LEGAL && tempRawUser) {
+            bootstrapLegalSession(tempRawUser, tempToken);
+        }
+        login(user);
+    };
+
     // STAGE 2: Validate PIN
     const handlePinSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -83,7 +113,7 @@ export const Login = () => {
                 setStage('BIOMETRIC');
             } else if (tempUser) {
                 // Others log in immediately
-                login(tempUser);
+                finalizeLogin(tempUser);
             }
         } else {
             setError('Invalid Security PIN.');
@@ -98,10 +128,10 @@ export const Login = () => {
         // Simulate hardware delay
         setTimeout(() => {
             // 90% chance of success for demo
-            const success = true; 
+            const success = true;
             setIsScanning(false);
             if (success && tempUser) {
-                login(tempUser);
+                finalizeLogin(tempUser);
             } else {
                 setError('Biometric Not Recognized. Try again.');
             }
@@ -265,20 +295,36 @@ export const Login = () => {
                 {renderContent()}
             </Card>
 
-            {/* Hint Box */}
+            {/* Hint Box — click a box to auto-fill its credentials */}
             <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gov-500 dark:text-gov-400 max-w-2xl text-center opacity-60 hover:opacity-100 transition-opacity">
-                <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
+                <button
+                    type="button"
+                    onClick={() => fillDemoCredentials('rajendran.k@tnpolice.gov.in', 'password123')}
+                    className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors cursor-pointer"
+                >
                     <strong>Admin</strong><br/>rajendran.k@tnpolice.gov.in<br/>password123
-                </div>
-                <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
+                </button>
+                <button
+                    type="button"
+                    onClick={() => fillDemoCredentials('murugan.s@tnpolice.gov.in', 'password123')}
+                    className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors cursor-pointer"
+                >
                     <strong>Police</strong><br/>murugan.s@tnpolice.gov.in<br/>password123
-                </div>
-                <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
+                </button>
+                <button
+                    type="button"
+                    onClick={() => fillDemoCredentials('karthik.venkat@tnfsl.gov.in', 'password123')}
+                    className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors cursor-pointer"
+                >
                     <strong>Forensics</strong><br/>karthik.venkat@tnfsl.gov.in<br/>password123
-                </div>
-                <div className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors">
+                </button>
+                <button
+                    type="button"
+                    onClick={() => fillDemoCredentials('vijay.sundaram@tngovt.in', 'password123')}
+                    className="p-2 border border-gov-200 dark:border-gov-800 rounded hover:bg-white dark:hover:bg-gov-900 transition-colors cursor-pointer"
+                >
                     <strong>Legal</strong><br/>vijay.sundaram@tngovt.in<br/>password123
-                </div>
+                </button>
             </div>
         </div>
     );
