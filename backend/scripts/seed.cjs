@@ -70,7 +70,7 @@ const USERS = [
     bar_judicial_id: 'TNJS/REG/0056', court: 'Principal District & Sessions Court, Coimbatore',
     jurisdiction: 'Coimbatore District, Tamil Nadu', phone: '+91 96290 78123',
   },
-  { user_id: 'u1', username: 'nikhil', email: 'nikhil@police.tn.gov', password: 'password123', name: 'Nikhil Ganesh', role: 'POLICE', designation: 'Inspector of Police', badge_number: 'TN-KK-001', org_msp: 'Org1MSP' },
+  { user_id: 'u_police_nikhil', username: 'nikhil', email: 'nikhil@police.tn.gov', password: 'password123', name: 'Nikhil Ganesh', role: 'POLICE', designation: 'Inspector of Police', badge_number: 'TN-KK-001', org_msp: 'Org1MSP' },
   { user_id: 'u2', username: 'kavitha', email: 'kavitha@lab.tn.gov', password: 'password123', name: 'Dr. Kavitha', role: 'FORENSICS', designation: 'Senior Scientific Officer', org_msp: 'Org2MSP' },
   { user_id: 'admin1', username: 'mob_admin', email: 'admin@police.tn.gov', password: 'adminpassword', name: 'Superintendent (Admin)', role: 'ADMIN', designation: 'System Administrator', org_msp: 'Org1MSP' },
 ];
