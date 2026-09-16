@@ -53,20 +53,20 @@ const UserProfileModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
         <Card className="w-full max-w-lg relative" title={isSelf ? "My Profile" : "Edit User"}>
-            <button onClick={onClose} className="absolute top-4 right-4 text-gov-400 hover:text-gov-600 dark:hover:text-white">
+            <button onClick={onClose} className="absolute top-4 right-4 text-ink-300 hover:text-ink-900">
                 <X size={20} />
             </button>
-            
+
             <div className="space-y-6 mt-2">
                 {/* Profile Picture */}
                 <div className="flex flex-col items-center">
-                    <div className="w-24 h-24 rounded-full bg-gov-200 dark:bg-gov-700 overflow-hidden mb-2 border-2 border-gov-300 dark:border-gov-600">
+                    <div className="w-24 h-24 rounded-full bg-paper-100 overflow-hidden mb-2 border-2 border-line-300">
                         {formData.profileImage ? (
                             <img src={formData.profileImage} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-gov-500 dark:text-gov-300">
+                            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-navy-700">
                                 {formData.name[0]}
                             </div>
                         )}
@@ -74,7 +74,7 @@ const UserProfileModal = ({
                     {/* Only allow PFP upload if it's the user themselves or Admin */}
                     <div className="relative">
                         <input type="file" id="pfp-upload" className="hidden" accept="image/*" onChange={handlePfpUpload} />
-                        <label htmlFor="pfp-upload" className="cursor-pointer text-xs flex items-center gap-1 text-blue-600 hover:text-blue-500 dark:text-blue-400">
+                        <label htmlFor="pfp-upload" className="cursor-pointer text-xs flex items-center gap-1 text-navy-700 hover:text-navy-900">
                             <Upload size={12} /> Change Photo
                         </label>
                     </div>
@@ -82,30 +82,30 @@ const UserProfileModal = ({
 
                 <div className="grid gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Full Name</label>
-                        <Input 
-                            label="" 
-                            value={formData.name} 
+                        <label className="block text-sm font-medium text-ink-700 mb-1">Full Name</label>
+                        <Input
+                            label=""
+                            value={formData.name}
                             disabled={!isAdmin && !isSelf} // Only admin or self can edit name
                             onChange={e => setFormData({...formData, name: e.target.value})}
                         />
                     </div>
-                    
+
                     <div>
-                        <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Email Address</label>
-                        <Input 
-                            label="" 
-                            value={formData.email} 
+                        <label className="block text-sm font-medium text-ink-700 mb-1">Email Address</label>
+                        <Input
+                            label=""
+                            value={formData.email}
                             disabled={true} // Email is usually immutable identifier
                         />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Role</label>
+                            <label className="block text-sm font-medium text-ink-700 mb-1">Role</label>
                             {isAdmin ? (
-                                <select 
-                                    className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white text-sm"
+                                <select
+                                    className="w-full px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500"
                                     value={formData.role}
                                     onChange={handleRoleChange}
                                 >
@@ -118,10 +118,10 @@ const UserProfileModal = ({
                             )}
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Designation</label>
+                            <label className="block text-sm font-medium text-ink-700 mb-1">Designation</label>
                             {isAdmin ? (
-                                <select 
-                                    className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white text-sm"
+                                <select
+                                    className="w-full px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500"
                                     value={formData.designation}
                                     onChange={e => setFormData({...formData, designation: e.target.value})}
                                 >
@@ -136,7 +136,7 @@ const UserProfileModal = ({
                     </div>
                 </div>
 
-                <div className="flex justify-end pt-4 border-t border-gov-200 dark:border-gov-700">
+                <div className="flex justify-end pt-4 border-t border-line-200">
                     <Button onClick={() => onSave(formData)}>Save Changes</Button>
                 </div>
             </div>
@@ -240,7 +240,7 @@ const Main = () => {
 
   return (
     <>
-        <Layout setView={setView} onOpenProfile={handleOpenProfile}>
+        <Layout setView={setView} onOpenProfile={handleOpenProfile} currentView={view}>
             {renderContent()}
         </Layout>
         

@@ -53,7 +53,7 @@ export const Header = ({ subNav }: { subNav?: ReactNode }) => {
                   <div className="text-sm font-medium leading-tight text-navy-900">{user.name}</div>
                   <div className="text-[11px] text-ink-500 leading-tight">{user.designation}</div>
                 </div>
-                <ChevronDown size={14} className="text-ink-400" />
+                <ChevronDown size={14} className="text-ink-300" />
               </button>
               {showProfile && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-sm shadow-lg border border-line-200 text-ink-900 overflow-hidden animate-fade-in">

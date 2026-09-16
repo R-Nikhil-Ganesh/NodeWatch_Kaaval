@@ -33,16 +33,16 @@ export const CertificateManager = () => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gov-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-navy-900 flex items-center gap-2">
                 <FileBadge /> Certificate Manager
             </h2>
-            <p className="text-sm text-gov-500 dark:text-gov-400">
+            <p className="text-sm text-ink-500">
                 Issue Section 63 Certificates for SECONDARY evidence to make them admissible in court.
             </p>
 
             <Card title="Pending Certification">
                 {pendingEvidence.length === 0 ? (
-                    <div className="p-12 text-center text-gov-500 dark:text-gov-400">
+                    <div className="p-12 text-center text-ink-500">
                         <FileText className="w-12 h-12 mx-auto mb-2 opacity-50"/>
                         No evidence is currently pending certification.
                     </div>
@@ -51,7 +51,7 @@ export const CertificateManager = () => {
                         {pendingEvidence.map(ev => (
                             <tr key={ev.evidenceId}>
                                 <td className="px-6 py-4 font-mono text-xs">{ev.evidenceId}</td>
-                                <td className="px-6 py-4 font-medium text-gov-800 dark:text-white">{ev.fileName}</td>
+                                <td className="px-6 py-4 font-medium text-navy-900">{ev.fileName}</td>
                                 <td className="px-6 py-4">{ev.caseId}</td>
                                 <td className="px-6 py-4"><Badge color="yellow">{ev.classification}</Badge></td>
                                 <td className="px-6 py-4">
@@ -66,20 +66,20 @@ export const CertificateManager = () => {
             </Card>
 
             {certModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <Card className="w-full max-w-md" title="Issue Section 63 Certificate">
+                <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+                    <Card className="w-full max-w-md shadow-2xl" title="Issue Section 63 Certificate">
                         <div className="space-y-4">
-                             <div className="p-3 mb-2 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex items-start gap-2">
+                             <div className="p-3 mb-2 bg-status-pendingBg text-status-pending text-xs rounded-sm border border-status-pending/20 flex items-start gap-2">
                                 <AlertTriangle size={24} className="shrink-0"/>
                                 <strong>Warning:</strong> Issuing this certificate attests to the integrity of the secondary evidence. This is a legally binding action.
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Upload Signed Certificate</label>
-                                <input 
-                                    type="file" 
+                                <label className="block text-sm font-medium text-ink-700 mb-1">Upload Signed Certificate</label>
+                                <input
+                                    type="file"
                                     accept=".pdf"
                                     onChange={(e) => setCertFile(e.target.files ? e.target.files[0] : null)}
-                                    className="w-full text-sm text-gov-500 dark:text-gov-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-purple-900/30 dark:file:text-purple-300" 
+                                    className="w-full text-sm text-ink-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-ashoka-50 file:text-ashoka-700 hover:file:bg-ashoka-100"
                                 />
                             </div>
                         </div>

@@ -50,27 +50,27 @@ const AccessControlModal = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gov-900 w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gov-200 dark:border-gov-700 bg-gov-50 dark:bg-gov-950">
-                    <h3 className="text-lg font-bold text-gov-900 dark:text-white flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-gov-600 dark:text-gov-300" />
+        <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-2xl rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-line-200 bg-paper-50">
+                    <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-ink-700" />
                         Access Control: {evidence.fileName}
                     </h3>
-                    <button onClick={onClose}><X size={20} className="text-gov-500 hover:text-gov-800 dark:text-gov-400 dark:hover:text-white" /></button>
+                    <button onClick={onClose}><X size={20} className="text-ink-500 hover:text-ink-700" /></button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    <div className="flex items-center justify-between p-4 bg-gov-100 dark:bg-gov-800 rounded-lg">
+                    <div className="flex items-center justify-between p-4 bg-paper-100 rounded-sm">
                         <div>
-                            <h4 className="font-bold text-gov-900 dark:text-white">Restricted Access Mode</h4>
-                            <p className="text-xs text-gov-500 dark:text-gov-400">
+                            <h4 className="font-bold text-navy-900">Restricted Access Mode</h4>
+                            <p className="text-xs text-ink-500">
                                 If enabled, only Admins and selected entities can view this evidence.
                             </p>
                         </div>
-                        <button 
+                        <button
                             onClick={() => setVisibility({ ...visibility, isRestricted: !visibility.isRestricted })}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${visibility.isRestricted ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-navy-500 focus:ring-offset-2 ${visibility.isRestricted ? 'bg-navy-700' : 'bg-line-300'}`}
                         >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${visibility.isRestricted ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
@@ -78,18 +78,18 @@ const AccessControlModal = ({
 
                     {visibility.isRestricted && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                            
+
                             <div>
-                                <h4 className="text-sm font-bold text-gov-700 dark:text-gov-300 mb-2 uppercase tracking-wide">Allowed Roles</h4>
+                                <h4 className="text-sm font-bold text-ink-700 mb-2 uppercase tracking-wide">Allowed Roles</h4>
                                 <div className="flex flex-wrap gap-2">
                                     {Object.values(UserRole).filter(r => r !== UserRole.ADMIN).map(role => (
                                         <button
                                             key={role}
                                             onClick={() => toggleRole(role)}
-                                            className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                                            className={`px-3 py-1.5 rounded-sm text-xs font-medium border transition-colors ${
                                                 visibility.allowedRoles.includes(role)
-                                                ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/40 dark:border-blue-700 dark:text-blue-200'
-                                                : 'bg-white border-gov-300 text-gov-600 hover:bg-gov-50 dark:bg-gov-800 dark:border-gov-600 dark:text-gov-400 dark:hover:bg-gov-700'
+                                                ? 'bg-navy-50 border-navy-100 text-navy-800'
+                                                : 'bg-white border-line-300 text-ink-700 hover:bg-paper-50'
                                             }`}
                                         >
                                             {role}
@@ -99,21 +99,21 @@ const AccessControlModal = ({
                             </div>
 
                             <div>
-                                <h4 className="text-sm font-bold text-gov-700 dark:text-gov-300 mb-2 uppercase tracking-wide">Allowed Designations</h4>
+                                <h4 className="text-sm font-bold text-ink-700 mb-2 uppercase tracking-wide">Allowed Designations</h4>
                                 <div className="space-y-3">
                                     {Object.entries(DESIGNATIONS).filter(([key]) => key !== UserRole.ADMIN).map(([role, list]) => (
-                                        <div key={role} className="bg-gov-50 dark:bg-gov-800/50 p-3 rounded border border-gov-200 dark:border-gov-700">
-                                            <p className="text-xs font-bold text-gov-500 dark:text-gov-400 mb-2">{role}</p>
+                                        <div key={role} className="bg-paper-50 p-3 rounded-sm border border-line-200">
+                                            <p className="text-xs font-bold text-ink-500 mb-2">{role}</p>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {list.map(des => (
                                                     <label key={des} className="flex items-center space-x-2 text-xs cursor-pointer">
-                                                        <input 
-                                                            type="checkbox" 
+                                                        <input
+                                                            type="checkbox"
                                                             checked={visibility.allowedDesignations.includes(des)}
                                                             onChange={() => toggleDesignation(des)}
-                                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gov-900 dark:border-gov-600"
+                                                            className="rounded border-line-300 text-navy-700 focus:ring-navy-500"
                                                         />
-                                                        <span className="text-gov-700 dark:text-gov-300">{des}</span>
+                                                        <span className="text-ink-700">{des}</span>
                                                     </label>
                                                 ))}
                                             </div>
@@ -123,23 +123,23 @@ const AccessControlModal = ({
                             </div>
 
                             <div>
-                                <h4 className="text-sm font-bold text-gov-700 dark:text-gov-300 mb-2 uppercase tracking-wide">Specific Personnel</h4>
-                                <div className="border border-gov-200 dark:border-gov-700 rounded-md max-h-40 overflow-y-auto">
+                                <h4 className="text-sm font-bold text-ink-700 mb-2 uppercase tracking-wide">Specific Personnel</h4>
+                                <div className="border border-line-200 rounded-sm max-h-40 overflow-y-auto">
                                     {users.filter(u => u.role !== UserRole.ADMIN).map(u => (
-                                        <label key={u.id} className="flex items-center justify-between px-3 py-2 hover:bg-gov-50 dark:hover:bg-gov-800 cursor-pointer border-b border-gov-100 dark:border-gov-700/50 last:border-0">
+                                        <label key={u.id} className="flex items-center justify-between px-3 py-2 hover:bg-paper-50 cursor-pointer border-b border-line-200 last:border-0">
                                             <div className="flex items-center gap-2">
-                                                <input 
-                                                    type="checkbox" 
+                                                <input
+                                                    type="checkbox"
                                                     checked={visibility.allowedUserIds.includes(u.id)}
                                                     onChange={() => toggleUser(u.id)}
-                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gov-900 dark:border-gov-600"
+                                                    className="rounded border-line-300 text-navy-700 focus:ring-navy-500"
                                                 />
                                                 <div>
-                                                    <p className="text-sm font-medium text-gov-900 dark:text-gov-200">{u.name}</p>
-                                                    <p className="text-[10px] text-gov-500 dark:text-gov-400">{u.designation} • {u.role}</p>
+                                                    <p className="text-sm font-medium text-navy-900">{u.name}</p>
+                                                    <p className="text-[10px] text-ink-500">{u.designation} • {u.role}</p>
                                                 </div>
                                             </div>
-                                            <span className="text-xs font-mono text-gov-400">{u.id}</span>
+                                            <span className="text-xs font-mono text-ink-300">{u.id}</span>
                                         </label>
                                     ))}
                                 </div>
@@ -149,7 +149,7 @@ const AccessControlModal = ({
                     )}
                 </div>
 
-                <div className="px-6 py-4 bg-gov-50 dark:bg-gov-950 border-t border-gov-200 dark:border-gov-700 flex justify-end gap-2">
+                <div className="px-6 py-4 bg-paper-50 border-t border-line-200 flex justify-end gap-2">
                     <Button variant="secondary" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onSave(visibility)}>Save Access Controls</Button>
                 </div>
@@ -241,13 +241,13 @@ const Pinboard = ({ evidence, onView }: { evidence: Evidence[], onView: (e: Evid
     return (
         <div 
             ref={containerRef}
-            className="w-full h-[650px] bg-slate-900 relative rounded-lg overflow-hidden border border-slate-700 shadow-inner cursor-default select-none"
+            className="w-full h-[650px] bg-navy-950 relative rounded-sm overflow-hidden border border-navy-800 shadow-inner cursor-default select-none"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            style={{ 
-                backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)', 
-                backgroundSize: '20px 20px' 
+            style={{
+                backgroundImage: 'radial-gradient(#0E2F58 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
             }}
         >
              <svg className="absolute inset-0 w-full h-full pointer-events-none">
@@ -263,7 +263,7 @@ const Pinboard = ({ evidence, onView }: { evidence: Evidence[], onView: (e: Evid
                             y1={posStart.y + NODE_HEIGHT / 2}
                             x2={posEnd.x + NODE_WIDTH / 2}
                             y2={posEnd.y + NODE_HEIGHT / 2}
-                            stroke="#60a5fa"
+                            stroke="#F1A055"
                             strokeWidth="2"
                             strokeOpacity="0.6"
                             strokeDasharray="5,5"
@@ -283,37 +283,37 @@ const Pinboard = ({ evidence, onView }: { evidence: Evidence[], onView: (e: Evid
                             transform: `translate(${pos.x}px, ${pos.y}px)`,
                             width: NODE_WIDTH
                         }}
-                        className={`absolute flex flex-col bg-slate-800 border-2 rounded-lg shadow-xl hover:shadow-2xl transition-shadow ${
-                            ev.evidenceId === draggingId ? 'z-20 border-blue-400 cursor-grabbing' : 'z-10 border-slate-600 hover:border-slate-400 cursor-grab'
+                        className={`absolute flex flex-col bg-navy-900 border-2 rounded-sm shadow-xl hover:shadow-2xl transition-shadow ${
+                            ev.evidenceId === draggingId ? 'z-20 border-saffron-400 cursor-grabbing' : 'z-10 border-navy-800 hover:border-navy-600 cursor-grab'
                         }`}
                         onMouseDown={(e) => handleMouseDown(e, ev.evidenceId)}
                     >
-                        <div className={`h-2 w-full rounded-t-sm mb-2 ${ev.classification === EvidenceClassification.PRIMARY ? 'bg-green-600' : 'bg-yellow-600'}`}></div>
-                        
+                        <div className={`h-2 w-full rounded-t-sm mb-2 ${ev.classification === EvidenceClassification.PRIMARY ? 'bg-status-resolved' : 'bg-status-pending'}`}></div>
+
                         <div className="px-3 pb-3 flex flex-col h-full">
                             <div className="flex items-start justify-between mb-2">
-                                <span className={`text-[10px] px-1.5 rounded font-mono ${
-                                    ev.type === EvidenceType.IMAGE ? 'bg-purple-900/50 text-purple-300' : 'bg-blue-900/50 text-blue-300'
+                                <span className={`text-[10px] px-1.5 rounded-sm font-mono ${
+                                    ev.type === EvidenceType.IMAGE ? 'bg-navy-800 text-navy-200' : 'bg-ashoka-700/50 text-ashoka-100'
                                 }`}>
                                     {ev.type}
                                 </span>
                                 <div className={`w-2 h-2 rounded-full ${
-                                    ev.integrityStatus === IntegrityStatus.VERIFIED ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.6)]' : 
-                                    ev.integrityStatus === IntegrityStatus.COMPROMISED ? 'bg-red-500 animate-pulse' : 'bg-yellow-500'
+                                    ev.integrityStatus === IntegrityStatus.VERIFIED ? 'bg-status-resolved shadow-[0_0_5px_rgba(34,197,94,0.6)]' :
+                                    ev.integrityStatus === IntegrityStatus.COMPROMISED ? 'bg-status-urgent animate-pulse' : 'bg-status-pending'
                                 }`}></div>
                             </div>
-                            
+
                             <p className="text-white text-xs font-bold leading-tight line-clamp-2 mb-1 pointer-events-none">
                                 {ev.fileName}
                             </p>
-                            <p className="text-slate-500 text-[9px] font-mono mb-2 pointer-events-none">
+                            <p className="text-navy-300 text-[9px] font-mono mb-2 pointer-events-none">
                                 {ev.evidenceId}
                             </p>
 
-                            <button 
+                            <button
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={() => onView(ev)}
-                                className="mt-auto w-full py-1 text-[10px] font-medium bg-slate-700 hover:bg-blue-600 text-slate-200 hover:text-white rounded transition-colors"
+                                className="mt-auto w-full py-1 text-[10px] font-medium bg-navy-800 hover:bg-saffron-600 text-navy-200 hover:text-white rounded-sm transition-colors"
                             >
                                 Inspect
                             </button>
@@ -338,49 +338,49 @@ const ClassificationDetailModal = ({
 }) => {
     const isPrimary = evidence.classification === EvidenceClassification.PRIMARY;
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
             <Card className="w-full max-w-lg" title="Evidence Classification Details">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h4 className="font-bold text-gov-900 dark:text-white">{evidence.fileName}</h4>
-                        <p className="text-xs font-mono text-gov-500 dark:text-gov-400">{evidence.evidenceId}</p>
+                        <h4 className="font-bold text-navy-900">{evidence.fileName}</h4>
+                        <p className="text-xs font-mono text-ink-500">{evidence.evidenceId}</p>
                     </div>
                     <Badge color={isPrimary ? 'green' : 'yellow'}>{evidence.classification}</Badge>
                 </div>
-                
-                <p className="text-sm text-gov-600 dark:text-gov-300 mt-4">
-                    {isPrimary 
+
+                <p className="text-sm text-ink-700 mt-4">
+                    {isPrimary
                         ? "This evidence meets all requirements to be considered PRIMARY and is admissible in court."
                         : "This evidence is SECONDARY. To be admissible, it requires a Section 63 Certificate from Forensics."}
                 </p>
 
                 <div className="mt-6 space-y-3">
-                    <div className={`flex items-center justify-between p-3 rounded-lg border ${evidence.sourceHash ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+                    <div className={`flex items-center justify-between p-3 rounded-sm border ${evidence.sourceHash ? 'bg-status-resolvedBg border-status-resolved/20' : 'bg-status-urgentBg border-status-urgent/20'}`}>
                         <div className="flex items-center gap-2">
-                            <Hash size={16} className={evidence.sourceHash ? 'text-green-600' : 'text-red-600'} />
-                            <span className="text-sm font-medium text-gov-800 dark:text-gov-200">Source Hash (at lifting)</span>
+                            <Hash size={16} className={evidence.sourceHash ? 'text-status-resolved' : 'text-status-urgent'} />
+                            <span className="text-sm font-medium text-navy-900">Source Hash (at lifting)</span>
                         </div>
                         <span className="text-sm font-bold">{evidence.sourceHash ? 'PRESENT' : 'MISSING'}</span>
                     </div>
-                    <div className={`flex items-center justify-between p-3 rounded-lg border ${evidence.liftingVideo ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+                    <div className={`flex items-center justify-between p-3 rounded-sm border ${evidence.liftingVideo ? 'bg-status-resolvedBg border-status-resolved/20' : 'bg-status-urgentBg border-status-urgent/20'}`}>
                         <div className="flex items-center gap-2">
-                            <Video size={16} className={evidence.liftingVideo ? 'text-green-600' : 'text-red-600'} />
-                            <span className="text-sm font-medium text-gov-800 dark:text-gov-200">Lifting Video</span>
+                            <Video size={16} className={evidence.liftingVideo ? 'text-status-resolved' : 'text-status-urgent'} />
+                            <span className="text-sm font-medium text-navy-900">Lifting Video</span>
                         </div>
                         <span className="text-sm font-bold">{evidence.liftingVideo ? 'PRESENT' : 'MISSING'}</span>
                     </div>
-                    <div className={`flex items-center justify-between p-3 rounded-lg border ${evidence.section63Certificate ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'}`}>
+                    <div className={`flex items-center justify-between p-3 rounded-sm border ${evidence.section63Certificate ? 'bg-status-resolvedBg border-status-resolved/20' : 'bg-status-pendingBg border-status-pending/20'}`}>
                         <div className="flex items-center gap-2">
-                            <FileBadge size={16} className={evidence.section63Certificate ? 'text-green-600' : 'text-yellow-600'} />
-                            <span className="text-sm font-medium text-gov-800 dark:text-gov-200">Section 63 Certificate</span>
+                            <FileBadge size={16} className={evidence.section63Certificate ? 'text-status-resolved' : 'text-status-pending'} />
+                            <span className="text-sm font-medium text-navy-900">Section 63 Certificate</span>
                         </div>
                         <span className="text-sm font-bold">{evidence.section63Certificate ? 'ISSUED' : 'NOT ISSUED'}</span>
                     </div>
                 </div>
 
                 {canIssueCert && !isPrimary && !evidence.section63Certificate && (
-                    <div className="mt-6 pt-4 border-t border-gov-200 dark:border-gov-700">
-                        <p className="text-xs text-center text-gov-500 dark:text-gov-400 mb-2">As a Forensics officer, you can issue a certificate for this evidence.</p>
+                    <div className="mt-6 pt-4 border-t border-line-200">
+                        <p className="text-xs text-center text-ink-500 mb-2">As a Forensics officer, you can issue a certificate for this evidence.</p>
                         <Button className="w-full" onClick={() => onIssueCertClick(evidence.evidenceId)}>
                             Issue Certificate
                         </Button>
@@ -637,20 +637,20 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gov-900 w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-gov-200 dark:border-gov-700">
+        <div className="fixed inset-0 bg-navy-950/50 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+            <div className="bg-white w-full max-w-3xl rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-line-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gov-200 dark:border-gov-700 bg-gov-50 dark:bg-gov-950">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-line-200 bg-paper-50">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-sm bg-navy-50 text-navy-700 flex items-center justify-center">
                             <Upload className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-gov-900 dark:text-white">Upload Digital Evidence to Vault</h3>
-                            <p className="text-xs text-gov-500 dark:text-gov-400">Cryptographically hashed and enqueued for Hyperledger Fabric registration</p>
+                            <h3 className="text-lg font-bold text-navy-900">Upload Digital Evidence to Vault</h3>
+                            <p className="text-xs text-ink-500">Cryptographically hashed and enqueued for Hyperledger Fabric registration</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-gov-400 hover:text-gov-600 dark:hover:text-white transition-colors">
+                    <button onClick={onClose} className="text-ink-300 hover:text-ink-700 transition-colors">
                         <X size={22} />
                     </button>
                 </div>
@@ -659,13 +659,13 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Target Case Selector */}
                     <div>
-                        <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
-                            Target Case File <span className="text-red-500">*</span>
+                        <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
+                            Target Case File <span className="text-status-urgent">*</span>
                         </label>
                         <select
                             value={targetCaseId}
                             onChange={(e) => setTargetCaseId(e.target.value)}
-                            className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                         >
                             {cases.map(c => (
                                 <option key={c.caseId} value={c.caseId}>
@@ -676,14 +676,14 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                     </div>
 
                     {/* File Dropzone & Pick */}
-                    <div className="border-2 border-dashed border-gov-300 dark:border-gov-700 rounded-xl p-5 text-center bg-gov-50/50 dark:bg-gov-800/30 hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
+                    <div className="border-2 border-dashed border-line-300 rounded-sm p-5 text-center bg-paper-50/50 hover:border-navy-500 transition-colors">
                         {!selectedFile ? (
                             <label className="cursor-pointer flex flex-col items-center justify-center space-y-2 py-4">
-                                <FileUp className="w-10 h-10 text-blue-500 animate-bounce" />
-                                <p className="text-sm font-semibold text-gov-800 dark:text-gov-200">
+                                <FileUp className="w-10 h-10 text-navy-500 animate-bounce" />
+                                <p className="text-sm font-semibold text-ink-700">
                                     Click to select digital evidence file or drag and drop
                                 </p>
-                                <p className="text-xs text-gov-500 dark:text-gov-400">
+                                <p className="text-xs text-ink-500">
                                     Images, Videos, Audio, PDFs, Documents, Forensic Disk Images
                                 </p>
                                 <input
@@ -694,21 +694,21 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                             </label>
                         ) : (
                             <div className="space-y-4">
-                                <div className="flex items-center justify-between p-3 bg-white dark:bg-gov-800 rounded-lg border border-gov-200 dark:border-gov-700">
+                                <div className="flex items-center justify-between p-3 bg-white rounded-sm border border-line-200">
                                     <div className="flex items-center gap-3 text-left">
-                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400">
+                                        <div className="p-2 bg-navy-50 rounded-sm text-navy-700">
                                             <FileText size={20} />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-gov-900 dark:text-white truncate max-w-sm">
+                                            <p className="text-sm font-bold text-navy-900 truncate max-w-sm">
                                                 {selectedFile.name}
                                             </p>
-                                            <p className="text-xs text-gov-500 font-mono">
+                                            <p className="text-xs text-ink-500 font-mono">
                                                 {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.type || 'binary/raw'}
                                             </p>
                                         </div>
                                     </div>
-                                    <label className="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400">
+                                    <label className="cursor-pointer text-xs font-semibold text-navy-700 hover:text-navy-600">
                                         Change File
                                         <input type="file" className="hidden" onChange={handleFileChange} />
                                     </label>
@@ -716,15 +716,15 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
 
                                 {/* Live Image Preview if Image */}
                                 {filePreview && selectedFile.type.startsWith('image/') && (
-                                    <div className="flex justify-center bg-black/20 p-2 rounded-lg border border-gov-200 dark:border-gov-700">
-                                        <img src={filePreview} alt="Preview" className="max-h-48 object-contain rounded" />
+                                    <div className="flex justify-center bg-navy-950/20 p-2 rounded-sm border border-line-200">
+                                        <img src={filePreview} alt="Preview" className="max-h-48 object-contain rounded-sm" />
                                     </div>
                                 )}
 
                                 {/* Cryptographic Fingerprint Badge */}
-                                <div className="p-3 bg-slate-900 text-slate-100 rounded-lg text-left">
+                                <div className="p-3 bg-navy-950 text-navy-100 rounded-sm text-left">
                                     <div className="flex items-center justify-between mb-1">
-                                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-status-resolved">
                                             <Shield size={13} />
                                             {isComputingHash ? 'Calculating SHA-256...' : 'Client-Side SHA-256 Hash'}
                                         </div>
@@ -736,14 +736,14 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                                                     setCopiedHash(true);
                                                     setTimeout(() => setCopiedHash(false), 2000);
                                                 }}
-                                                className="text-slate-400 hover:text-white text-xs flex items-center gap-1"
+                                                className="text-navy-300 hover:text-white text-xs flex items-center gap-1"
                                             >
-                                                {copiedHash ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                                {copiedHash ? <Check size={12} className="text-status-resolved" /> : <Copy size={12} />}
                                                 {copiedHash ? 'Copied' : 'Copy'}
                                             </button>
                                         )}
                                     </div>
-                                    <p className="font-mono text-xs break-all text-slate-300">
+                                    <p className="font-mono text-xs break-all text-navy-300">
                                         {isComputingHash ? 'Hashing file bytes...' : computedFileHash}
                                     </p>
                                 </div>
@@ -754,25 +754,25 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                     {/* Evidence Name & Type */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
-                                Artifact Title / Name <span className="text-red-500">*</span>
+                            <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
+                                Artifact Title / Name <span className="text-status-urgent">*</span>
                             </label>
                             <input
                                 type="text"
                                 value={evidenceName}
                                 onChange={(e) => setEvidenceName(e.target.value)}
                                 placeholder="e.g. CCTV Recording Front Gate, Confiscated iPhone"
-                                className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
                                 Evidence Type
                             </label>
                             <select
                                 value={evidenceType}
                                 onChange={(e) => setEvidenceType(e.target.value as EvidenceType)}
-                                className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                             >
                                 {Object.values(EvidenceType).map(t => (
                                     <option key={t} value={t}>{t}</option>
@@ -782,24 +782,24 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                     </div>
 
                     {/* BSA Section 63 Legal Classification Engine */}
-                    <div className="p-4 bg-blue-50/70 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800/60 space-y-4">
+                    <div className="p-4 bg-navy-50 rounded-sm border border-navy-100 space-y-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                <h4 className="text-sm font-bold text-gov-900 dark:text-white">
+                                <Sparkles className="w-4 h-4 text-navy-700" />
+                                <h4 className="text-sm font-bold text-navy-900">
                                     Legal Classification (Bharatiya Sakshya Adhiniyam)
                                 </h4>
                             </div>
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wide ${
-                                isPrimary 
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold tracking-wide border ${
+                                isPrimary
+                                    ? 'bg-status-resolvedBg text-status-resolved border-status-resolved/30'
+                                    : 'bg-status-pendingBg text-status-pending border-status-pending/30'
                             }`}>
                                 {isPrimary ? 'PRIMARY EVIDENCE (Sec. 62 BSA)' : 'SECONDARY EVIDENCE (Sec. 63 BSA)'}
                             </span>
                         </div>
 
-                        <p className="text-xs text-gov-600 dark:text-gov-300">
+                        <p className="text-xs text-ink-700">
                             Under the BSA framework, evidence is classified as <strong>PRIMARY</strong> if both a pre-lifting Source Hash and an unbroken Lifting Video are provided. Otherwise, it is stored as <strong>SECONDARY</strong> and requires a Section 63 certificate for court admissibility.
                         </p>
 
@@ -807,14 +807,14 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                             {/* Pre-Lifting Source Hash */}
                             <div>
                                 <div className="flex items-center justify-between mb-1">
-                                    <label className="text-xs font-bold text-gov-700 dark:text-gov-300">
+                                    <label className="text-xs font-bold text-ink-700">
                                         Source Hash (Pre-Lifting / Device Hash)
                                     </label>
                                     {computedFileHash && (
                                         <button
                                             type="button"
                                             onClick={handleCopyFileHashToSource}
-                                            className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                                            className="text-[11px] text-navy-700 hover:underline"
                                         >
                                             Use File Hash
                                         </button>
@@ -825,23 +825,23 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                                     value={sourceHash}
                                     onChange={(e) => setSourceHash(e.target.value)}
                                     placeholder="e.g. SHA-256 hash before lifting"
-                                    className="w-full px-3 py-2 font-mono text-xs border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-900 text-gov-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 font-mono text-xs border border-line-300 rounded-sm bg-white text-navy-900 focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                                 />
                             </div>
 
                             {/* Lifting Video Input */}
                             <div>
-                                <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 mb-1">
+                                <label className="block text-xs font-bold text-ink-700 mb-1">
                                     Lifting Video Recording
                                 </label>
                                 <input
                                     type="file"
                                     accept="video/*"
                                     onChange={handleLiftingVideoChange}
-                                    className="w-full text-xs text-gov-500 dark:text-gov-400 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 dark:file:bg-blue-900/40 dark:file:text-blue-300"
+                                    className="w-full text-xs text-ink-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:text-xs file:font-semibold file:bg-navy-50 file:text-navy-700 hover:file:bg-navy-100"
                                 />
                                 {liftingVideo && (
-                                    <p className="text-[11px] text-gov-500 font-mono mt-1 truncate">
+                                    <p className="text-[11px] text-ink-500 font-mono mt-1 truncate">
                                         {isComputingVideoHash ? 'Computing video SHA-256...' : `Hash: ${liftingVideoHash || 'Ready'}`}
                                     </p>
                                 )}
@@ -853,14 +853,14 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="md:col-span-2">
                             <div className="flex items-center justify-between mb-1">
-                                <label className="text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider flex items-center gap-1">
-                                    <MapPin size={12} className="text-red-500" /> Seizure Location / Geo-Tag
+                                <label className="text-xs font-bold text-ink-700 uppercase tracking-wider flex items-center gap-1">
+                                    <MapPin size={12} className="text-status-urgent" /> Seizure Location / Geo-Tag
                                 </label>
                                 <button
                                     type="button"
                                     onClick={fetchLocation}
                                     disabled={isAcquiringGps}
-                                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                    className="text-[11px] text-navy-700 hover:underline flex items-center gap-1"
                                 >
                                     {isAcquiringGps ? <Loader2 size={11} className="animate-spin" /> : null}
                                     {isAcquiringGps ? 'Fetching GPS...' : 'Refresh GPS'}
@@ -871,18 +871,18 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                                 value={location}
                                 onChange={(e) => setLocation(e.target.value)}
                                 placeholder="GPS coordinates or scene address"
-                                className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
                                 Operational Risk Level
                             </label>
                             <select
                                 value={riskLevel}
                                 onChange={(e) => setRiskLevel(e.target.value as 'LOW' | 'MEDIUM' | 'HIGH')}
-                                className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                             >
                                 <option value="LOW">LOW — Standard Storage</option>
                                 <option value="MEDIUM">MEDIUM — Sensitive Artifact</option>
@@ -893,7 +893,7 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
 
                     {/* Operational Notes */}
                     <div>
-                        <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
+                        <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
                             Seizure Notes & Device Details
                         </label>
                         <textarea
@@ -901,29 +901,29 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                             onChange={(e) => setNotes(e.target.value)}
                             rows={3}
                             placeholder="Physical condition, device IMEI / serial numbers, package bag seal numbers, seizing officer remarks..."
-                            className="w-full px-3 py-2 border border-gov-300 dark:border-gov-600 rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white text-navy-900 text-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                         />
                     </div>
 
                     {/* Link to Existing Evidence in Case */}
                     {existingEvidence.length > 0 && (
                         <div>
-                            <label className="block text-xs font-bold text-gov-700 dark:text-gov-300 uppercase tracking-wider mb-1">
+                            <label className="block text-xs font-bold text-ink-700 uppercase tracking-wider mb-1">
                                 Link to Related Case Evidence (Pinboard Connections)
                             </label>
-                            <div className="border border-gov-200 dark:border-gov-700 rounded-lg max-h-36 overflow-y-auto bg-gov-50/50 dark:bg-gov-950/40 p-1">
+                            <div className="border border-line-200 rounded-sm max-h-36 overflow-y-auto bg-paper-50/50 p-1">
                                 {existingEvidence.map(ev => (
                                     <div
                                         key={ev.evidenceId}
                                         onClick={() => handleToggleLink(ev.evidenceId)}
-                                        className="flex items-center p-2 hover:bg-gov-100 dark:hover:bg-gov-800 rounded cursor-pointer transition-colors"
+                                        className="flex items-center p-2 hover:bg-paper-100 rounded-sm cursor-pointer transition-colors"
                                     >
-                                        <div className={`mr-2.5 ${linkedEvidenceIds.includes(ev.evidenceId) ? 'text-blue-600 dark:text-blue-400' : 'text-gov-400'}`}>
+                                        <div className={`mr-2.5 ${linkedEvidenceIds.includes(ev.evidenceId) ? 'text-navy-700' : 'text-ink-300'}`}>
                                             {linkedEvidenceIds.includes(ev.evidenceId) ? <CheckSquare size={16} /> : <Square size={16} />}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-semibold text-gov-900 dark:text-white truncate">{ev.name || ev.fileName}</p>
-                                            <p className="text-[10px] text-gov-500 font-mono">{ev.evidenceId} • {ev.type}</p>
+                                            <p className="text-xs font-semibold text-navy-900 truncate">{ev.name || ev.fileName}</p>
+                                            <p className="text-[10px] text-ink-500 font-mono">{ev.evidenceId} • {ev.type}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -932,28 +932,28 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                     )}
 
                     {/* Access Control Options */}
-                    <div className="p-4 bg-gov-100 dark:bg-gov-800/60 rounded-xl flex flex-col gap-3">
+                    <div className="p-4 bg-paper-100 rounded-sm flex flex-col gap-3">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h5 className="text-xs font-bold text-gov-900 dark:text-white uppercase tracking-wider">
+                                <h5 className="text-xs font-bold text-navy-900 uppercase tracking-wider">
                                     Restricted Access Mode
                                 </h5>
-                                <p className="text-xs text-gov-500 dark:text-gov-400">
+                                <p className="text-xs text-ink-500">
                                     Limit artifact viewing strictly to authorized roles
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setIsRestricted(!isRestricted)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isRestricted ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isRestricted ? 'bg-navy-700' : 'bg-line-300'}`}
                             >
                                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isRestricted ? 'translate-x-6' : 'translate-x-1'}`} />
                             </button>
                         </div>
 
                         {isRestricted && (
-                            <div className="pt-2 border-t border-gov-200 dark:border-gov-700">
-                                <p className="text-[11px] font-bold text-gov-600 dark:text-gov-300 mb-1.5 uppercase">
+                            <div className="pt-2 border-t border-line-200">
+                                <p className="text-[11px] font-bold text-ink-700 mb-1.5 uppercase">
                                     Permitted Roles:
                                 </p>
                                 <div className="flex flex-wrap gap-2">
@@ -962,10 +962,10 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                                             key={role}
                                             type="button"
                                             onClick={() => toggleRole(role)}
-                                            className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                                            className={`px-3 py-1 rounded-sm text-xs font-medium border transition-colors ${
                                                 allowedRoles.includes(role)
-                                                    ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/50 dark:border-blue-600 dark:text-blue-200'
-                                                    : 'bg-white border-gov-300 text-gov-600 dark:bg-gov-800 dark:border-gov-600 dark:text-gov-400'
+                                                    ? 'bg-navy-50 border-navy-100 text-navy-800'
+                                                    : 'bg-white border-line-300 text-ink-700'
                                             }`}
                                         >
                                             {role}
@@ -978,9 +978,9 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
                 </div>
 
                 {/* Modal Footer */}
-                <div className="px-6 py-4 bg-gov-50 dark:bg-gov-950 border-t border-gov-200 dark:border-gov-700 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="text-xs text-gov-500 flex items-center gap-1.5">
-                        <Lock size={13} className="text-blue-500" />
+                <div className="px-6 py-4 bg-paper-50 border-t border-line-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs text-ink-500 flex items-center gap-1.5">
+                        <Lock size={13} className="text-navy-500" />
                         <span>Signatory: <strong>{currentUser?.name}</strong> ({currentUser?.role})</span>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -1121,23 +1121,23 @@ export const EvidenceVault = () => {
         if (ev.fileUrl) {
             if (isImage) {
                 return (
-                    <div className="w-full max-h-[420px] bg-black/40 rounded-lg flex items-center justify-center overflow-hidden p-2 border border-gov-200 dark:border-gov-700">
-                        <img src={ev.fileUrl} alt={ev.fileName} className="max-h-[400px] max-w-full object-contain rounded" />
+                    <div className="w-full max-h-[420px] bg-navy-950/40 rounded-sm flex items-center justify-center overflow-hidden p-2 border border-line-200">
+                        <img src={ev.fileUrl} alt={ev.fileName} className="max-h-[400px] max-w-full object-contain rounded-sm" />
                     </div>
                 );
             }
             if (isVideo) {
                 return (
-                    <div className="w-full max-h-[420px] bg-black/40 rounded-lg flex items-center justify-center overflow-hidden p-2 border border-gov-200 dark:border-gov-700">
-                        <video src={ev.fileUrl} controls className="max-h-[400px] max-w-full rounded" />
+                    <div className="w-full max-h-[420px] bg-navy-950/40 rounded-sm flex items-center justify-center overflow-hidden p-2 border border-line-200">
+                        <video src={ev.fileUrl} controls className="max-h-[400px] max-w-full rounded-sm" />
                     </div>
                 );
             }
             if (isAudio) {
                 return (
-                    <div className="w-full p-6 bg-gov-100 dark:bg-gov-800 rounded-lg flex flex-col items-center justify-center border border-gov-200 dark:border-gov-700">
-                        <Music className="w-12 h-12 text-blue-500 mb-3" />
-                        <p className="font-bold text-sm text-gov-800 dark:text-white mb-2">{ev.fileName}</p>
+                    <div className="w-full p-6 bg-paper-100 rounded-sm flex flex-col items-center justify-center border border-line-200">
+                        <Music className="w-12 h-12 text-navy-500 mb-3" />
+                        <p className="font-bold text-sm text-navy-900 mb-2">{ev.fileName}</p>
                         <audio src={ev.fileUrl} controls className="w-full max-w-md" />
                     </div>
                 );
@@ -1145,21 +1145,21 @@ export const EvidenceVault = () => {
         }
 
         return (
-            <div className="w-full h-64 bg-gray-900 rounded-lg flex flex-col items-center justify-center overflow-hidden border border-gov-700 p-4">
-                <div className="text-center text-gov-400">
-                    {isImage && <ImageIcon className="w-16 h-16 mx-auto mb-2 text-blue-400 opacity-75" />}
-                    {isVideo && <Video className="w-16 h-16 mx-auto mb-2 text-purple-400 opacity-75" />}
-                    {isAudio && <Music className="w-16 h-16 mx-auto mb-2 text-green-400 opacity-75" />}
-                    {isPdf && <FileText className="w-16 h-16 mx-auto mb-2 text-red-400 opacity-75" />}
+            <div className="w-full h-64 bg-navy-950 rounded-sm flex flex-col items-center justify-center overflow-hidden border border-navy-800 p-4">
+                <div className="text-center text-navy-300">
+                    {isImage && <ImageIcon className="w-16 h-16 mx-auto mb-2 text-navy-400 opacity-75" />}
+                    {isVideo && <Video className="w-16 h-16 mx-auto mb-2 text-ashoka-100 opacity-75" />}
+                    {isAudio && <Music className="w-16 h-16 mx-auto mb-2 text-status-resolved opacity-75" />}
+                    {isPdf && <FileText className="w-16 h-16 mx-auto mb-2 text-status-urgent opacity-75" />}
                     {!isImage && !isVideo && !isAudio && !isPdf && <Box className="w-16 h-16 mx-auto mb-2 opacity-50" />}
                     <p className="text-sm font-semibold text-white">{ev.name || ev.fileName}</p>
-                    <p className="text-xs text-gov-400 mt-1 font-mono">{ev.type} • {ev.fileSizeBytes ? `${(ev.fileSizeBytes / 1024).toFixed(1)} KB` : 'Secured Ledger Artifact'}</p>
+                    <p className="text-xs text-navy-300 mt-1 font-mono">{ev.type} • {ev.fileSizeBytes ? `${(ev.fileSizeBytes / 1024).toFixed(1)} KB` : 'Secured Ledger Artifact'}</p>
                     {ev.fileUrl && (
-                        <a 
-                            href={ev.fileUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="mt-3 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline"
+                        <a
+                            href={ev.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 inline-flex items-center gap-1 text-xs text-saffron-400 hover:text-saffron-300 underline"
                         >
                             Open / Download File
                         </a>
@@ -1173,21 +1173,21 @@ export const EvidenceVault = () => {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gov-900 dark:text-white flex items-center gap-2"><Box className="w-6 h-6" />Evidence Vault</h2>
-                    <p className="text-sm text-gov-500 dark:text-gov-400 mt-1">Securely view, verify, and upload evidence artifacts. Access is logged.</p>
+                    <h2 className="text-2xl font-bold text-navy-900 flex items-center gap-2"><Box className="w-6 h-6" />Evidence Vault</h2>
+                    <p className="text-sm text-ink-500 mt-1">Securely view, verify, and upload evidence artifacts. Access is logged.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
                     <div className="w-full sm:w-64">
-                        <label className="block text-xs font-bold text-gov-500 dark:text-gov-400 uppercase mb-1">Select Case</label>
+                        <label className="block text-xs font-bold text-ink-500 uppercase mb-1">Select Case</label>
                         <div className="relative">
-                            <select value={selectedCaseId} onChange={(e) => setSelectedCaseId(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-gov-300 dark:border-gov-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white">
+                            <select value={selectedCaseId} onChange={(e) => setSelectedCaseId(e.target.value)} className="block w-full pl-3 pr-10 py-2 text-base border-line-300 focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-sm bg-white text-navy-900">
                                 {cases.map(c => <option key={c.caseId} value={c.caseId}>{c.caseId} - {c.title}</option>)}
                             </select>
                         </div>
                     </div>
                     {canUpload && (
-                        <Button 
-                            onClick={() => setUploadModalOpen(true)} 
+                        <Button
+                            onClick={() => setUploadModalOpen(true)}
                             className="flex items-center justify-center gap-2 h-10 whitespace-nowrap"
                             disabled={cases.length === 0}
                         >
@@ -1197,31 +1197,31 @@ export const EvidenceVault = () => {
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-gov-800 p-4 rounded-lg shadow-sm border border-gov-200 dark:border-gov-700">
+            <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-sm shadow-card border border-line-200">
                 <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gov-400" size={16} />
-                    <input type="text" placeholder="Search by ID, filename, or type..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border border-gov-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gov-900 dark:border-gov-600 dark:text-white" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-300" size={16} />
+                    <input type="text" placeholder="Search by ID, filename, or type..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border border-line-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500" />
                 </div>
-                <div className="flex items-center gap-2 border-l border-gov-200 dark:border-gov-700 pl-4">
-                    <div className="flex items-center bg-gov-100 dark:bg-gov-900 p-1 rounded-md">
-                        <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-gov-700 shadow text-blue-600 dark:text-blue-400' : 'text-gov-500 dark:text-gov-400 hover:text-gov-900 dark:hover:text-white'}`} title="Grid View"><LayoutGrid size={16} /></button>
-                        <button onClick={() => setViewMode('pinboard')} className={`p-1.5 rounded transition-colors ${viewMode === 'pinboard' ? 'bg-white dark:bg-gov-700 shadow text-blue-600 dark:text-blue-400' : 'text-gov-500 dark:text-gov-400 hover:text-gov-900 dark:hover:text-white'}`} title="Pinboard View"><Network size={16} /></button>
+                <div className="flex items-center gap-2 border-l border-line-200 pl-4">
+                    <div className="flex items-center bg-paper-100 p-1 rounded-sm">
+                        <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-sm transition-colors ${viewMode === 'grid' ? 'bg-white shadow-card text-navy-700' : 'text-ink-500 hover:text-navy-900'}`} title="Grid View"><LayoutGrid size={16} /></button>
+                        <button onClick={() => setViewMode('pinboard')} className={`p-1.5 rounded-sm transition-colors ${viewMode === 'pinboard' ? 'bg-white shadow-card text-navy-700' : 'text-ink-500 hover:text-navy-900'}`} title="Pinboard View"><Network size={16} /></button>
                     </div>
                     {viewMode === 'grid' && (<>
-                        <div className="h-6 w-px bg-gov-200 dark:bg-gov-700 mx-2"></div>
-                        <span className="text-xs font-bold text-gov-500 dark:text-gov-400 uppercase hidden sm:block">Sort:</span>
-                        <select value={sortConfig.key} onChange={(e) => setSortConfig({...sortConfig, key: e.target.value as any})} className="text-sm border border-gov-300 rounded-md px-3 py-2 dark:bg-gov-900 dark:border-gov-600 dark:text-white">
+                        <div className="h-6 w-px bg-line-200 mx-2"></div>
+                        <span className="text-xs font-bold text-ink-500 uppercase hidden sm:block">Sort:</span>
+                        <select value={sortConfig.key} onChange={(e) => setSortConfig({...sortConfig, key: e.target.value as any})} className="text-sm border border-line-300 rounded-sm px-3 py-2">
                             <option value="date">Date Uploaded</option><option value="integrity">Integrity Status</option><option value="name">File Name</option>
                         </select>
-                        <button onClick={() => setSortConfig({...sortConfig, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc'})} className="p-2 border border-gov-300 rounded-md hover:bg-gov-100 dark:border-gov-600 dark:hover:bg-gov-700 dark:text-white" title={sortConfig.direction === 'asc' ? "Ascending" : "Descending"}><ArrowUpDown size={16} /></button>
+                        <button onClick={() => setSortConfig({...sortConfig, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc'})} className="p-2 border border-line-300 rounded-sm hover:bg-paper-100" title={sortConfig.direction === 'asc' ? "Ascending" : "Descending"}><ArrowUpDown size={16} /></button>
                     </>)}
                 </div>
             </div>
 
             {sortedEvidence.length === 0 ? (
-                <div className="py-12 text-center border-2 border-dashed border-gov-300 dark:border-gov-700 rounded-lg">
-                    <Box className="w-12 h-12 text-gov-400 mx-auto mb-3" />
-                    <p className="text-gov-500 dark:text-gov-400 mb-4">No evidence found matching your criteria.</p>
+                <div className="py-12 text-center border-2 border-dashed border-line-300 rounded-sm">
+                    <Box className="w-12 h-12 text-ink-300 mx-auto mb-3" />
+                    <p className="text-ink-500 mb-4">No evidence found matching your criteria.</p>
                     {canUpload && cases.length > 0 && (
                         <Button onClick={() => setUploadModalOpen(true)} size="sm">
                             <Upload size={14} className="mr-1.5" /> Upload Evidence to this Case
@@ -1237,16 +1237,16 @@ export const EvidenceVault = () => {
                             <Card className="h-full flex flex-col transition-shadow hover:shadow-md">
                                 <div className="flex items-start justify-between mb-4">
                                     <div>
-                                        <h3 className="text-sm font-bold text-gov-900 dark:text-white flex items-center gap-2"><ImageIcon size={14}/> <span className="truncate max-w-[150px]" title={ev.fileName}>{ev.fileName}</span></h3>
-                                        <p className="text-xs text-gov-500 font-mono mt-1">{ev.evidenceId}</p>
+                                        <h3 className="text-sm font-bold text-navy-900 flex items-center gap-2"><ImageIcon size={14}/> <span className="truncate max-w-[150px]" title={ev.fileName}>{ev.fileName}</span></h3>
+                                        <p className="text-xs text-ink-500 font-mono mt-1">{ev.evidenceId}</p>
                                     </div><IntegrityBadge status={ev.integrityStatus} />
                                 </div>
-                                <div className="flex-1 space-y-2 text-sm text-gov-600 dark:text-gov-300">
-                                    <div className="flex justify-between"><span className="text-gov-400">Class:</span><Badge color={ev.classification === EvidenceClassification.PRIMARY ? 'green' : 'yellow'}>{ev.classification}</Badge></div>
-                                    <div className="flex justify-between"><span className="text-gov-400">Type:</span><span>{ev.type}</span></div>
-                                    <div className="flex justify-between"><span className="text-gov-400">Legal Status:</span><span className={ev.approvedForLegal ? "text-green-600" : "text-gray-500"}>{ev.approvedForLegal ? "Approved" : "Restricted"}</span></div>
+                                <div className="flex-1 space-y-2 text-sm text-ink-700">
+                                    <div className="flex justify-between"><span className="text-ink-300">Class:</span><Badge color={ev.classification === EvidenceClassification.PRIMARY ? 'green' : 'yellow'}>{ev.classification}</Badge></div>
+                                    <div className="flex justify-between"><span className="text-ink-300">Type:</span><span>{ev.type}</span></div>
+                                    <div className="flex justify-between"><span className="text-ink-300">Legal Status:</span><span className={ev.approvedForLegal ? "text-status-resolved" : "text-ink-500"}>{ev.approvedForLegal ? "Approved" : "Restricted"}</span></div>
                                 </div>
-                                <div className="mt-6 flex items-center gap-2 pt-4 border-t border-gov-100 dark:border-gov-700">
+                                <div className="mt-6 flex items-center gap-2 pt-4 border-t border-line-200">
                                     <Button onClick={() => handleViewClick(ev)} size="sm" className="flex-1" disabled={ev.integrityStatus === IntegrityStatus.COMPROMISED && !isAdmin}><Eye size={14} /> View File</Button>
                                     <Button onClick={() => setClassDetailEvidence(ev)} variant="secondary" size="sm" className="flex-1"><FileBadge size={14} /> View Class</Button>
                                 </div>
@@ -1257,44 +1257,44 @@ export const EvidenceVault = () => {
             )}
 
             {viewingEvidence && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gov-900 w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gov-200 dark:border-gov-700 bg-gov-50 dark:bg-gov-950">
+                <div className="fixed inset-0 bg-navy-950/60 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                    <div className="bg-white w-full max-w-4xl rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-line-200 bg-paper-50">
                             <div>
-                                <h3 className="text-lg font-bold text-gov-900 dark:text-white flex items-center gap-2">Secure View: {viewingEvidence.fileName}{verificationComplete && viewingEvidence.integrityStatus === IntegrityStatus.VERIFIED && (<Badge color="green">Secure</Badge>)}</h3>
-                                <p className="text-xs text-gov-500 font-mono">{viewingEvidence.evidenceId}</p>
+                                <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">Secure View: {viewingEvidence.fileName}{verificationComplete && viewingEvidence.integrityStatus === IntegrityStatus.VERIFIED && (<Badge color="green">Secure</Badge>)}</h3>
+                                <p className="text-xs text-ink-500 font-mono">{viewingEvidence.evidenceId}</p>
                             </div>
-                            <button onClick={handleCloseModal} className="text-gov-400 hover:text-gov-600 dark:hover:text-white transition-colors"><X size={24} /></button>
+                            <button onClick={handleCloseModal} className="text-ink-300 hover:text-ink-700 transition-colors"><X size={24} /></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center min-h-[400px] bg-gov-100 dark:bg-black/20">
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center min-h-[400px] bg-paper-100">
                             {isVerifying ? (
-                                <div className="text-center"><Loader2 className="w-16 h-16 text-blue-500 animate-spin mx-auto mb-4" /><h4 className="text-lg font-bold text-gov-800 dark:text-white">Verifying Integrity</h4><p className="text-gov-500 dark:text-gov-400 mt-1">Validating SHA-256 Hash against Blockchain Ledger...</p></div>
+                                <div className="text-center"><Loader2 className="w-16 h-16 text-navy-500 animate-spin mx-auto mb-4" /><h4 className="text-lg font-bold text-navy-900">Verifying Integrity</h4><p className="text-ink-500 mt-1">Validating SHA-256 Hash against Blockchain Ledger...</p></div>
                             ) : (
                                 <div className="w-full flex flex-col items-center animate-in fade-in duration-300">
-                                    {viewingEvidence.integrityStatus === IntegrityStatus.COMPROMISED && (<div className="w-full mb-6 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-4 rounded-lg flex items-start gap-3"><AlertTriangle className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" /><div><h4 className="text-sm font-bold text-red-800 dark:text-red-200">Integrity Warning</h4><p className="text-xs text-red-700 dark:text-red-300 mt-1">The hash of this file does not match the blockchain record. The file may have been tampered with.</p></div></div>)}
+                                    {viewingEvidence.integrityStatus === IntegrityStatus.COMPROMISED && (<div className="w-full mb-6 bg-status-urgentBg border border-status-urgent/20 p-4 rounded-sm flex items-start gap-3"><AlertTriangle className="text-status-urgent shrink-0 mt-0.5" /><div><h4 className="text-sm font-bold text-status-urgent">Integrity Warning</h4><p className="text-xs text-status-urgent mt-1">The hash of this file does not match the blockchain record. The file may have been tampered with.</p></div></div>)}
                                     {renderContentPreview(viewingEvidence)}
-                                    <div className="mt-8 w-full max-w-2xl bg-white dark:bg-gov-800 rounded-lg p-4 border border-gov-200 dark:border-gov-700">
-                                        <h5 className="text-xs font-bold uppercase text-gov-400 mb-3">Integrity Verification</h5>
-                                        <div className="flex items-center gap-4 text-sm"><div className="flex-1"><p className="text-gov-500 dark:text-gov-400 text-xs">File Hash (vs. Ledger)</p><p className="font-mono text-gov-800 dark:text-gov-200 truncate">{viewingEvidence.fileHash}</p></div><div className="flex items-center gap-2 text-green-600 dark:text-green-400 font-bold bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded"><CheckCircle size={16} /> Matches</div></div>
+                                    <div className="mt-8 w-full max-w-2xl bg-white rounded-sm p-4 border border-line-200">
+                                        <h5 className="text-xs font-bold uppercase text-ink-300 mb-3">Integrity Verification</h5>
+                                        <div className="flex items-center gap-4 text-sm"><div className="flex-1"><p className="text-ink-500 text-xs">File Hash (vs. Ledger)</p><p className="font-mono text-navy-900 truncate">{viewingEvidence.fileHash}</p></div><div className="flex items-center gap-2 text-status-resolved font-bold bg-status-resolvedBg px-3 py-1 rounded-sm"><CheckCircle size={16} /> Matches</div></div>
                                     </div>
                                 </div>
                             )}
                         </div>
-                        <div className="px-6 py-4 bg-gov-50 dark:bg-gov-950 border-t border-gov-200 dark:border-gov-700 flex justify-between items-center"><div className="text-xs text-gov-500">Access ID: {currentUser?.id} • Time: {new Date().toLocaleTimeString()}</div><Button variant="secondary" onClick={handleCloseModal}>Close Viewer</Button></div>
+                        <div className="px-6 py-4 bg-paper-50 border-t border-line-200 flex justify-between items-center"><div className="text-xs text-ink-500">Access ID: {currentUser?.id} • Time: {new Date().toLocaleTimeString()}</div><Button variant="secondary" onClick={handleCloseModal}>Close Viewer</Button></div>
                     </div>
                 </div>
             )}
-            
+
             {classDetailEvidence && <ClassificationDetailModal evidence={classDetailEvidence} onClose={() => setClassDetailEvidence(null)} onIssueCertClick={handleOpenCertModal} canIssueCert={currentUser?.role === UserRole.FORENSICS} />}
-            
+
             {certModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
                     <Card className="w-full max-w-md" title="Issue Section 63 Certificate">
                         <div className="space-y-4">
-                            <p className="text-sm text-gov-600 dark:text-gov-300">This evidence is classified as <span className="font-bold text-yellow-600">SECONDARY</span>. To make it admissible, a valid Section 63 Certificate must be attached.</p>
+                            <p className="text-sm text-ink-700">This evidence is classified as <span className="font-bold text-status-pending">SECONDARY</span>. To make it admissible, a valid Section 63 Certificate must be attached.</p>
                             <div>
-                                <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Certificate File</label>
-                                <input type="file" onChange={(e) => setCertFile(e.target.files ? e.target.files[0] : null)} className="w-full text-sm text-gov-500 dark:text-gov-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-purple-900/30 dark:file:text-purple-300" />
+                                <label className="block text-sm font-medium text-ink-700 mb-1">Certificate File</label>
+                                <input type="file" onChange={(e) => setCertFile(e.target.files ? e.target.files[0] : null)} className="w-full text-sm text-ink-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-ashoka-50 file:text-ashoka-700 hover:file:bg-ashoka-100" />
                             </div>
                         </div>
                          <div className="mt-6 flex justify-end gap-2">

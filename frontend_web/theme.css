@@ -1,12 +1,11 @@
-html {
-  scroll-behavior: smooth;
-}
+/* Global visual details for the shared navy/saffron/paper design system —
+   applies app-wide now that every web portal uses it, not just the Legal
+   pages (which keep their own scoped copy in legal/legal.css). */
 
 body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Visible focus ring on every interactive element — GIGW/WCAG AA requirement */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -52,12 +51,4 @@ textarea:focus-visible,
 }
 .animate-slide-in {
   animation: slideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes marquee {
-  0% { transform: translateX(6%); }
-  100% { transform: translateX(-100%); }
-}
-.animate-marquee {
-  animation: marquee 26s linear infinite;
 }

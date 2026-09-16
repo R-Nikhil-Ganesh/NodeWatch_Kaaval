@@ -50,7 +50,7 @@ export const ChargeSheetView = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gov-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-navy-900 flex items-center gap-2">
                     <Gavel /> Charge Sheet Management
                 </h2>
                 {currentUser?.role === UserRole.POLICE && (
@@ -62,36 +62,36 @@ export const ChargeSheetView = () => {
 
             <div className="grid grid-cols-1 gap-4">
                 {chargeSheets.length === 0 ? (
-                    <div className="p-12 text-center bg-gov-50 dark:bg-gov-900/50 rounded-lg border border-gov-200 dark:border-gov-800 border-dashed">
-                        <Scale className="w-12 h-12 text-gov-300 mx-auto mb-2" />
-                        <p className="text-gov-500">No charge sheets have been filed in the system.</p>
+                    <div className="p-12 text-center bg-paper-50 rounded-sm border border-line-200 border-dashed">
+                        <Scale className="w-12 h-12 text-ink-300 mx-auto mb-2" />
+                        <p className="text-ink-500">No charge sheets have been filed in the system.</p>
                     </div>
                 ) : (
                     chargeSheets.map(doc => (
                         // FIX: Added a wrapping div with the key prop to resolve typing error on Card component.
                         <div key={doc.docId}>
-                            <Card className="hover:shadow-md transition-shadow">
+                            <Card className="hover:shadow-card transition-shadow">
                                 <div className="flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-2">
-                                            <h3 className="font-bold text-lg text-gov-900 dark:text-white">{doc.title}</h3>
+                                            <h3 className="font-bold text-lg text-navy-900">{doc.title}</h3>
                                             <Badge color="red">FILED</Badge>
                                             <Badge color="blue">{doc.caseId}</Badge>
                                         </div>
-                                        <p className="text-xs text-gov-500 font-mono mb-4">ID: {doc.docId} • Filed by {doc.uploadedBy}</p>
-                                        
-                                        <div className="bg-gov-50 dark:bg-gov-900 p-3 rounded-md border border-gov-100 dark:border-gov-800 text-sm whitespace-pre-line mb-4">
+                                        <p className="text-xs text-ink-500 font-mono mb-4">ID: {doc.docId} • Filed by {doc.uploadedBy}</p>
+
+                                        <div className="bg-paper-50 p-3 rounded-sm border border-paper-100 text-sm whitespace-pre-line mb-4">
                                             {doc.description}
                                         </div>
 
                                         {doc.linkedEvidenceIds && doc.linkedEvidenceIds.length > 0 && (
                                             <div>
-                                                <p className="text-xs font-bold uppercase text-gov-500 mb-2">Attached Verified Evidence</p>
+                                                <p className="text-xs font-bold uppercase text-ink-500 mb-2">Attached Verified Evidence</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {doc.linkedEvidenceIds.map(eid => {
                                                         const ev = evidence.find(e => e.evidenceId === eid);
                                                         return (
-                                                            <span key={eid} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs rounded border border-blue-100 dark:border-blue-800">
+                                                            <span key={eid} className="inline-flex items-center gap-1 px-2 py-1 bg-navy-50 text-navy-800 text-xs rounded-sm border border-navy-100">
                                                                 <FileIcon size={10} />
                                                                 {ev ? ev.fileName : eid}
                                                             </span>
@@ -101,7 +101,7 @@ export const ChargeSheetView = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="text-right text-xs text-gov-400">
+                                    <div className="text-right text-xs text-ink-300">
                                         {new Date(doc.timestamp).toLocaleString()}
                                     </div>
                                 </div>
@@ -112,16 +112,16 @@ export const ChargeSheetView = () => {
             </div>
 
             {chargeSheetModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-navy-950/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
                     <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto" title="File New Charge Sheet">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Select Case</label>
-                                     <select 
+                                    <label className="block text-sm font-medium text-ink-700 mb-1">Select Case</label>
+                                     <select
                                         value={selectedCaseId}
                                         onChange={(e) => setSelectedCaseId(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                                        className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white"
                                     >
                                         <option value="">-- Choose an active case --</option>
                                         {activeCases.map(c => (
@@ -136,9 +136,9 @@ export const ChargeSheetView = () => {
                                     placeholder="Full name of suspect"
                                 />
                                 <div>
-                                    <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Charges</label>
-                                    <textarea 
-                                        className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white focus:ring-blue-500"
+                                    <label className="block text-sm font-medium text-ink-700 mb-1">Charges</label>
+                                    <textarea
+                                        className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                                         rows={3}
                                         value={chargeData.charges}
                                         onChange={(e) => setChargeData({...chargeData, charges: e.target.value})}
@@ -146,9 +146,9 @@ export const ChargeSheetView = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-1">Investigation Details</label>
-                                    <textarea 
-                                        className="w-full px-3 py-2 border border-gov-300 rounded-md bg-white dark:bg-gov-900 dark:border-gov-600 dark:text-white focus:ring-blue-500"
+                                    <label className="block text-sm font-medium text-ink-700 mb-1">Investigation Details</label>
+                                    <textarea
+                                        className="w-full px-3 py-2 border border-line-300 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                                         rows={4}
                                         value={chargeData.details}
                                         onChange={(e) => setChargeData({...chargeData, details: e.target.value})}
@@ -157,31 +157,31 @@ export const ChargeSheetView = () => {
                                 </div>
                             </div>
                             
-                            <div className="border-l border-gov-200 dark:border-gov-700 pl-6">
-                                <label className="block text-sm font-medium text-gov-700 dark:text-gov-300 mb-2">Attach Verified Evidence</label>
-                                <p className="text-xs text-gov-500 mb-3">Only integrity-verified assets for the selected case can be attached.</p>
-                                
+                            <div className="border-l border-line-200 pl-6">
+                                <label className="block text-sm font-medium text-ink-700 mb-2">Attach Verified Evidence</label>
+                                <p className="text-xs text-ink-500 mb-3">Only integrity-verified assets for the selected case can be attached.</p>
+
                                 <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
                                     {!selectedCaseId ? (
-                                        <p className="text-xs text-yellow-600 italic">Please select a case first.</p>
+                                        <p className="text-xs text-status-pending italic">Please select a case first.</p>
                                     ) : verifiedEvidenceForCase.length === 0 ? (
-                                        <p className="text-xs text-red-500 italic">No verified evidence available for this case.</p>
+                                        <p className="text-xs text-status-urgent italic">No verified evidence available for this case.</p>
                                     ) : (
                                         verifiedEvidenceForCase.map(e => (
-                                            <div 
+                                            <div
                                                 key={e.evidenceId}
                                                 onClick={() => handleToggleChargeEvidence(e.evidenceId)}
-                                                className={`p-2 rounded border cursor-pointer transition-colors ${
-                                                    chargeEvidenceIds.includes(e.evidenceId) 
-                                                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700'
-                                                    : 'bg-white border-gov-200 dark:bg-gov-800 dark:border-gov-700 hover:border-blue-300'
+                                                className={`p-2 rounded-sm border cursor-pointer transition-colors ${
+                                                    chargeEvidenceIds.includes(e.evidenceId)
+                                                    ? 'bg-navy-50 border-navy-300'
+                                                    : 'bg-white border-line-200 hover:border-navy-300'
                                                 }`}
                                             >
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${chargeEvidenceIds.includes(e.evidenceId) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-400'}`}>
+                                                    <div className={`w-4 h-4 rounded-sm border flex items-center justify-center ${chargeEvidenceIds.includes(e.evidenceId) ? 'bg-navy-700 border-navy-700 text-white' : 'border-line-300'}`}>
                                                         {chargeEvidenceIds.includes(e.evidenceId) && <CheckSquare size={12} />}
                                                     </div>
-                                                    <span className="text-sm font-medium text-gov-900 dark:text-white truncate">{e.fileName}</span>
+                                                    <span className="text-sm font-medium text-navy-900 truncate">{e.fileName}</span>
                                                 </div>
                                             </div>
                                         ))
@@ -190,7 +190,7 @@ export const ChargeSheetView = () => {
                             </div>
                         </div>
 
-                        <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-gov-100 dark:border-gov-800">
+                        <div className="mt-6 flex justify-end gap-2 pt-4 border-t border-paper-100">
                             <Button variant="secondary" onClick={() => setChargeSheetModalOpen(false)}>Cancel</Button>
                             <Button onClick={handleSubmitChargeSheet} disabled={!chargeData.accused || !chargeData.charges || !selectedCaseId}>
                                 Sign & Submit Charge Sheet

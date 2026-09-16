@@ -10,26 +10,11 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class',
         theme: {
           extend: {
             colors: {
-              gov: {
-                50: '#f8fafc',
-                100: '#f1f5f9',
-                200: '#e2e8f0',
-                300: '#cbd5e1',
-                400: '#94a3b8',
-                500: '#64748b',
-                600: '#475569',
-                700: '#334155',
-                800: '#1e293b',
-                900: '#0f172a',
-                950: '#020617', // Added for deeper dark mode backgrounds
-              },
-              // Below: colors used only by the embedded Legal app pages
-              // (frontend_legal) — additive, namespaced under their own
-              // keys so they never touch the "gov" palette above.
+              // The shared design system for every portal in this app
+              // (ported from the standalone Legal/Court Management System).
               navy: {
                 50: '#EEF2F7',
                 100: '#DCE6F0',
@@ -87,12 +72,9 @@
             },
             fontFamily: {
               sans: ['Inter', 'system-ui', 'sans-serif'],
-              // Only used by the embedded Legal app pages (font-serif).
+              // Used for brand headings (e.g. "NodeWatch", "Court Management System").
               serif: ['"Noto Serif"', 'Georgia', 'serif']
             },
-            // Only referenced by the embedded Legal app pages — "gov"-themed
-            // components never use shadow-card or rounded-sm, so this is
-            // additive and doesn't change any existing look.
             boxShadow: {
               card: '0 1px 2px rgba(11, 37, 69, 0.06), 0 1px 1px rgba(11, 37, 69, 0.04)'
             },
@@ -103,12 +85,6 @@
         }
       }
     </script>
-    <style>
-      body {
-        /* Default light mode styles, dark mode handled by classes on body/html */
-        transition: background-color 0.3s, color 0.3s;
-      }
-    </style>
   <script type="importmap">
 {
   "imports": {
@@ -120,7 +96,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>

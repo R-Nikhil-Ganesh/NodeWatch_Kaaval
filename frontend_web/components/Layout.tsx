@@ -1,11 +1,33 @@
-
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { Shield, LayoutDashboard, FileText, Database, Users, LogOut, Sun, Moon, Link as LinkIcon, UserCircle, Box, Gavel, FileBadge } from 'lucide-react';
+import { LayoutDashboard, FileText, Database, Users, LogOut, Link as LinkIcon, UserCircle, Box, Gavel, FileBadge, ChevronDown } from 'lucide-react';
 import { UserRole } from '../types';
+import { TricolorStrip } from './layout/TricolorStrip';
+import { UtilityBar } from './layout/UtilityBar';
+import { Emblem } from './layout/Emblem';
 
-export const Layout = ({ children, setView, onOpenProfile }: { children?: React.ReactNode, setView: (v: string) => void, onOpenProfile: () => void }) => {
-  const { currentUser, logout, theme, toggleTheme } = useStore();
+export const Layout = ({
+  children,
+  setView,
+  onOpenProfile,
+  currentView = 'dashboard',
+}: {
+  children?: React.ReactNode;
+  setView: (v: string) => void;
+  onOpenProfile: () => void;
+  currentView?: string;
+}) => {
+  const { currentUser, logout } = useStore();
+  const [showProfile, setShowProfile] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfile(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   if (!currentUser) return null;
 
@@ -30,74 +52,81 @@ export const Layout = ({ children, setView, onOpenProfile }: { children?: React.
   ];
 
   return (
-    <div className="flex h-screen bg-gov-50 dark:bg-gov-950">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gov-900 text-white flex flex-col fixed h-full z-10 border-r border-gov-800">
-        <div className="h-16 flex items-center px-6 border-b border-gov-800">
-          <Shield className="w-8 h-8 text-blue-400 mr-3" />
-          <div>
-            <h1 className="font-bold text-lg tracking-tight">NodeWatch</h1>
-            <p className="text-xs text-gov-400">Gov. Evidence System</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-4 py-6 space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setView(item.id)}
-              className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-md hover:bg-gov-800 transition-colors text-gov-300 hover:text-white"
-            >
-              <item.icon className="w-5 h-5 mr-3 text-gov-400" />
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-gov-800 space-y-4">
-          <div className="flex items-center justify-between">
-              <div className="flex items-center cursor-pointer" onClick={onOpenProfile} title="View Profile">
-                {currentUser.profileImage ? (
-                   <img src={currentUser.profileImage} alt="Profile" className="w-8 h-8 rounded-full mr-3 object-cover border border-gov-600" />
-                ) : (
-                   <div className="w-8 h-8 rounded-full bg-gov-700 flex items-center justify-center mr-3 font-bold text-sm">
-                    {currentUser.name[0]}
-                   </div>
-                )}
-                <div className="overflow-hidden">
-                    <p className="text-sm font-medium truncate">{currentUser.name}</p>
-                    <p className="text-[10px] text-gov-400 truncate uppercase tracking-wider">{currentUser.designation || currentUser.role}</p>
-                </div>
+    <div className="min-h-screen bg-paper-50 flex flex-col">
+      <div className="sticky top-0 z-40">
+        <TricolorStrip />
+        <UtilityBar />
+        <header className="bg-white border-b border-line-200">
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-6">
+            <button onClick={() => setView('dashboard')} className="flex items-center gap-3 text-left shrink-0">
+              <Emblem size={40} />
+              <div className="hidden sm:block">
+                <p className="text-[10px] font-medium text-ink-500 uppercase tracking-wide">Government of Tamil Nadu</p>
+                <p className="font-serif font-bold text-lg leading-tight text-navy-900">NodeWatch</p>
               </div>
-              <button 
-                onClick={toggleTheme} 
-                className="p-1.5 rounded-md hover:bg-gov-800 text-gov-400 hover:text-white transition-colors"
-                title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-              >
-                {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-              </button>
-          </div>
-          
-          <button 
-            onClick={onOpenProfile}
-            className="w-full flex items-center justify-center px-4 py-2 text-xs font-medium bg-gov-800 hover:bg-gov-700 text-white rounded transition-colors"
-          >
-            <UserCircle size={14} className="mr-2" />
-            My Profile
-          </button>
-          
-          <button 
-            onClick={logout}
-            className="w-full flex items-center justify-center px-4 py-2 text-xs font-medium bg-gov-800 hover:bg-gov-700 text-white rounded transition-colors"
-          >
-            <LogOut size={14} className="mr-2" />
-            Sign Out
-          </button>
-        </div>
-      </aside>
+            </button>
 
-      {/* Main Content */}
-      <main className="flex-1 ml-64 p-8 overflow-y-auto h-full text-gov-900 dark:text-gov-100">
+            <div className="flex items-center gap-4 ml-auto">
+              <div ref={profileRef} className="relative">
+                <button onClick={() => setShowProfile((s) => !s)} className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-sm hover:bg-paper-100 transition-colors">
+                  {currentUser.profileImage ? (
+                    <img src={currentUser.profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-line-300" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-navy-900 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+                      {currentUser.name[0]}
+                    </div>
+                  )}
+                  <div className="text-left hidden sm:block">
+                    <div className="text-sm font-medium leading-tight text-navy-900">{currentUser.name}</div>
+                    <div className="text-[11px] text-ink-500 leading-tight">{currentUser.designation || currentUser.role}</div>
+                  </div>
+                  <ChevronDown size={14} className="text-ink-300" />
+                </button>
+                {showProfile && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-sm shadow-lg border border-line-200 text-ink-900 overflow-hidden animate-fade-in">
+                    <div className="px-4 py-3 border-b border-line-200 bg-paper-50">
+                      <p className="text-sm font-semibold text-navy-900">{currentUser.name}</p>
+                      <p className="text-xs text-ink-500">{currentUser.designation || currentUser.role}</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowProfile(false); onOpenProfile(); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink-700 hover:bg-paper-50"
+                    >
+                      <UserCircle size={15} /> My Profile
+                    </button>
+                    <button
+                      onClick={() => { setShowProfile(false); logout(); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-status-urgent hover:bg-status-urgentBg border-t border-line-200"
+                    >
+                      <LogOut size={15} /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-line-200 bg-paper-50">
+            <nav className="max-w-[1400px] mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    currentView === item.id
+                      ? 'border-saffron-500 text-navy-900'
+                      : 'border-transparent text-ink-500 hover:text-navy-700 hover:border-line-300'
+                  }`}
+                >
+                  <item.icon size={15} /> {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </header>
+      </div>
+
+      <main id="main-content" className="max-w-[1400px] w-full mx-auto px-4 sm:px-6 py-6 flex-1 text-ink-900">
         {children}
       </main>
     </div>

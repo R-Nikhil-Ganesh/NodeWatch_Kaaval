@@ -211,7 +211,7 @@ export const EvidencePage = () => {
             </div>
 
             {selected.section63CertificateId && (
-              <div className="bg-ashoka-50 border border-ashoka-100 rounded-sm p-3.5 text-sm text-ashoka-800">
+              <div className="bg-ashoka-50 border border-ashoka-100 rounded-sm p-3.5 text-sm text-ashoka-700">
                 Linked to <span className="font-medium">{(files || []).find((f) => f.fileId === selected.section63CertificateId)?.title ?? 'Section 63 BSA Certificate'}</span> in Case Files.
               </div>
             )}

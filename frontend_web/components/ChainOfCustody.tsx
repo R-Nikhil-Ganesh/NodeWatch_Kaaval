@@ -77,22 +77,22 @@ export const ChainOfCustodyView = () => {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gov-900 dark:text-white flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-navy-900 flex items-center gap-2">
                         <FileSearch className="w-6 h-6" />
                         Chain of Custody Ledger
                     </h2>
-                    <p className="text-sm text-gov-500 dark:text-gov-400 mt-1">
+                    <p className="text-sm text-ink-500 mt-1">
                         Immutable timeline of all actions taken on a specific case.
                     </p>
                 </div>
-                
+
                 <div className="w-full md:w-64">
-                    <label className="block text-xs font-bold text-gov-500 dark:text-gov-400 uppercase mb-1">Select Case</label>
+                    <label className="block text-xs font-bold text-ink-500 uppercase mb-1">Select Case</label>
                     <div className="relative">
-                        <select 
+                        <select
                             value={selectedCaseId}
                             onChange={(e) => setSelectedCaseId(e.target.value)}
-                            className="block w-full pl-3 pr-10 py-2 text-base border-gov-300 dark:border-gov-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white dark:bg-gov-800 text-gov-900 dark:text-white"
+                            className="block w-full pl-3 pr-10 py-2 text-base border-line-300 focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-sm bg-white text-navy-900"
                         >
                             {cases.map(c => (
                                 <option key={c.caseId} value={c.caseId}>
@@ -105,21 +105,21 @@ export const ChainOfCustodyView = () => {
             </div>
 
             {/* Controls */}
-             <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-gov-800 p-4 rounded-lg shadow-sm border border-gov-200 dark:border-gov-700">
+             <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-sm shadow-card border border-line-200">
                 <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gov-400" size={16} />
-                    <input 
-                        type="text" 
-                        placeholder="Search logs by user, action, or details..." 
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-ink-300" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Search logs by user, action, or details..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 text-sm border border-gov-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gov-900 dark:border-gov-600 dark:text-white"
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-line-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500"
                     />
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
+                    <button
                         onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-                        className="flex items-center gap-2 px-3 py-2 border border-gov-300 rounded-md hover:bg-gov-100 dark:border-gov-600 dark:hover:bg-gov-700 dark:text-white text-sm"
+                        className="flex items-center gap-2 px-3 py-2 border border-line-300 rounded-sm hover:bg-paper-100 text-sm"
                     >
                         <ArrowUpDown size={14} />
                         Sort Date: {sortDirection === 'asc' ? 'Oldest' : 'Newest'}
@@ -135,7 +135,7 @@ export const ChainOfCustodyView = () => {
 
             <Card title={`Custody Log: ${selectedCaseId || 'Select a case'}`}>
                 {sortedLogs.length === 0 ? (
-                    <div className="py-8 text-center text-gov-500 dark:text-gov-400">
+                    <div className="py-8 text-center text-ink-500">
                         No records found matching your filters.
                     </div>
                 ) : (
@@ -143,20 +143,20 @@ export const ChainOfCustodyView = () => {
                         {sortedLogs.map(log => {
                             const actor = getUserDetails(log.accessedBy);
                             return (
-                                <tr key={log.id} className="hover:bg-gov-50 dark:hover:bg-gov-700/50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gov-500 dark:text-gov-400 font-mono">
+                                <tr key={log.id} className="hover:bg-paper-50 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-ink-500 font-mono">
                                         {new Date(log.timestamp).toLocaleString()}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gov-200 dark:bg-gov-700 flex items-center justify-center text-gov-600 dark:text-gov-300 font-bold text-xs">
+                                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-line-200 flex items-center justify-center text-ink-700 font-bold text-xs">
                                                 {actor.name.charAt(0)}
                                             </div>
                                             <div className="ml-3">
-                                                <div className="text-sm font-medium text-gov-900 dark:text-white flex items-center gap-1">
+                                                <div className="text-sm font-medium text-navy-900 flex items-center gap-1">
                                                     {actor.name}
                                                 </div>
-                                                <div className="text-xs text-gov-500 dark:text-gov-400 flex items-center gap-1">
+                                                <div className="text-xs text-ink-500 flex items-center gap-1">
                                                     <Mail size={10} /> {actor.email}
                                                 </div>
                                             </div>
@@ -165,21 +165,21 @@ export const ChainOfCustodyView = () => {
                                     <td className="px-6 py-4">
                                         <RoleBadge role={log.role} />
                                     </td>
-                                    <td className="px-6 py-4 text-sm font-bold text-gov-800 dark:text-gov-100">
+                                    <td className="px-6 py-4 text-sm font-bold text-navy-900">
                                         {log.action.replace(/_/g, ' ')}
                                     </td>
-                                    <td className="px-6 py-4 text-xs font-mono text-gov-500 dark:text-gov-400">
+                                    <td className="px-6 py-4 text-xs font-mono text-ink-500">
                                         {log.evidenceId ? (
-                                            <span className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                                            <span className="bg-navy-50 text-navy-800 px-2 py-0.5 rounded-sm">
                                                 {log.evidenceId}
                                             </span>
                                         ) : (
-                                            <span className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">
+                                            <span className="bg-paper-100 text-ink-500 px-2 py-0.5 rounded-sm">
                                                 CASE LEVEL
                                             </span>
                                         )}
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-gov-600 dark:text-gov-300 max-w-xs truncate" title={log.details}>
+                                    <td className="px-6 py-4 text-sm text-ink-700 max-w-xs truncate" title={log.details}>
                                         {log.details}
                                     </td>
                                 </tr>

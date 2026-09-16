@@ -2,6 +2,11 @@ import React from 'react';
 import { IntegrityStatus, UserRole, CaseStatus } from '../types';
 import { CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
 
+// Shared UI primitives for the whole web app — restyled to match the
+// navy/saffron/paper/ink/line/status design system introduced by the Legal
+// portal (frontend_web/legal). Prop signatures are kept unchanged so every
+// existing call site across the app picks up the new look automatically.
+
 export const Button = ({
   children,
   onClick,
@@ -19,13 +24,13 @@ export const Button = ({
   size?: 'sm' | 'md' | 'lg';
   type?: 'button' | 'submit' | 'reset';
 }) => {
-  const baseStyle = "font-medium transition-colors duration-150 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2";
-  
+  const baseStyle = "font-medium transition-colors duration-150 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap";
+
   const variants = {
-    primary: "bg-gov-800 hover:bg-gov-900 text-white focus:ring-gov-500 dark:bg-blue-600 dark:hover:bg-blue-700",
-    secondary: "bg-white border border-gov-300 text-gov-700 hover:bg-gov-50 focus:ring-gov-500 dark:bg-gov-800 dark:border-gov-600 dark:text-gov-200 dark:hover:bg-gov-700",
-    danger: "bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 dark:bg-red-700 dark:hover:bg-red-800",
-    ghost: "text-gov-600 hover:bg-gov-100 focus:ring-gov-500 dark:text-gov-400 dark:hover:bg-gov-800"
+    primary: "bg-saffron-500 hover:bg-saffron-600 text-white shadow-card",
+    secondary: "bg-white border border-line-300 text-navy-900 hover:bg-paper-100",
+    danger: "bg-status-urgent hover:bg-red-800 text-white",
+    ghost: "text-navy-700 hover:bg-navy-50"
   };
 
   const sizes = {
@@ -46,27 +51,43 @@ export const Button = ({
   );
 };
 
-export const Card = ({ children, className = '', title }: { children?: React.ReactNode; className?: string, title?: string }) => (
-  <div className={`bg-white border border-gov-200 shadow-sm rounded-lg overflow-hidden dark:bg-gov-800 dark:border-gov-700 ${className}`}>
-    {title && (
-      <div className="px-6 py-4 border-b border-gov-200 bg-gov-50 dark:bg-gov-900/50 dark:border-gov-700">
-        <h3 className="text-lg font-semibold text-gov-800 dark:text-gov-100">{title}</h3>
+export const Card = ({
+  children,
+  className = '',
+  title,
+  action,
+  padded = true,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  title?: React.ReactNode;
+  action?: React.ReactNode;
+  padded?: boolean;
+}) => (
+  <div className={`bg-white border border-line-200 shadow-card rounded-sm overflow-hidden ${className}`}>
+    {(title || action) && (
+      <div className="flex items-center justify-between px-5 py-4 border-b border-line-200 bg-paper-50">
+        {typeof title === 'string' ? <h3 className="text-sm font-semibold text-navy-900 tracking-wide uppercase">{title}</h3> : title}
+        {action}
       </div>
     )}
-    <div className="p-6">{children}</div>
+    <div className={padded ? 'p-5' : ''}>{children}</div>
   </div>
 );
 
 export const Badge = ({ children, color }: { children?: React.ReactNode; color: 'green' | 'red' | 'yellow' | 'blue' | 'gray' }) => {
+  // Named colors are kept as the prop API (used throughout the app) but now
+  // render through the Legal portal's status/navy palette instead of the
+  // generic Tailwind green/red/yellow/blue swatches.
   const colors = {
-    green: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-    yellow: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-    gray: "bg-gov-100 text-gov-800 dark:bg-gov-700 dark:text-gov-300"
+    green: "bg-status-resolvedBg text-status-resolved border-status-resolved/20",
+    red: "bg-status-urgentBg text-status-urgent border-status-urgent/20",
+    yellow: "bg-status-pendingBg text-status-pending border-status-pending/20",
+    blue: "bg-navy-50 text-navy-800 border-navy-100",
+    gray: "bg-paper-100 text-ink-500 border-line-300"
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${colors[color]}`}>
       {children}
     </span>
   );
@@ -107,29 +128,49 @@ export const CaseStatusBadge = ({ status }: { status: CaseStatus }) => {
 }
 
 export const Table = ({ headers, children }: { headers: string[], children?: React.ReactNode }) => (
-  <div className="overflow-x-auto border border-gov-200 rounded-lg dark:border-gov-700">
-    <table className="min-w-full divide-y divide-gov-200 dark:divide-gov-700">
-      <thead className="bg-gov-50 dark:bg-gov-900/50">
+  <div className="overflow-x-auto border border-line-200 rounded-sm">
+    <table className="min-w-full divide-y divide-line-200">
+      <thead className="bg-paper-50">
         <tr>
           {headers.map((h, i) => (
-            <th key={i} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gov-500 uppercase tracking-wider dark:text-gov-400">
+            <th key={i} scope="col" className="px-5 py-3 text-left text-xs font-semibold text-ink-500 uppercase tracking-wide whitespace-nowrap">
               {h}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody className="bg-white divide-y divide-gov-200 dark:bg-gov-800 dark:divide-gov-700">
+      <tbody className="bg-white divide-y divide-line-200">
         {children}
       </tbody>
     </table>
   </div>
 );
 
+export const Select = ({ label, className = '', id, children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) => {
+  const selectId = id || label?.replace(/\s+/g, '-').toLowerCase();
+  return (
+    <div className="w-full">
+      {label && (
+        <label htmlFor={selectId} className="block text-sm font-medium text-ink-700 mb-1.5">
+          {label}
+        </label>
+      )}
+      <select
+        id={selectId}
+        className={`w-full px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500 transition-colors ${className}`}
+        {...rest}
+      >
+        {children}
+      </select>
+    </div>
+  );
+};
+
 export const Input = ({ label, className, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) => (
     <div className="mb-4">
-        {label && <label className="block text-sm font-medium text-gov-700 mb-1 dark:text-gov-300">{label}</label>}
-        <input 
-            className={`w-full px-3 py-2 border border-gov-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gov-500 focus:border-gov-500 sm:text-sm dark:bg-gov-900 dark:border-gov-600 dark:text-white dark:focus:ring-blue-500 ${className || ''}`}
+        {label && <label className="block text-sm font-medium text-ink-700 mb-1.5">{label}</label>}
+        <input
+            className={`w-full px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 placeholder:text-ink-300 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500 transition-colors ${className || ''}`}
             {...props}
         />
     </div>
@@ -138,7 +179,7 @@ export const Input = ({ label, className, ...props }: React.InputHTMLAttributes<
 // Utility to download CSV
 export const downloadCSV = (data: any[], headers: string[], filename: string) => {
     const csvRows = [];
-    
+
     // Add Header Row
     csvRows.push(headers.join(','));
 

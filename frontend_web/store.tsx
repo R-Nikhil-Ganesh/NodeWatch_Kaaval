@@ -13,8 +13,6 @@ interface AppState {
   logs: AccessLog[];
   documents: LegalDocument[];
   users: User[];
-  theme: 'light' | 'dark';
-  toggleTheme: () => void;
   login: (user: User) => void;
   logout: () => void;
   updateUser: (updatedUser: User) => void;
@@ -106,15 +104,13 @@ const mapDbEvidenceToEvidence = (row: any): Evidence => ({
 });
 
 const mapDbDocumentToDocument = (row: any): LegalDocument => ({
-  id: row.document_id || row.id,
+  docId: row.document_id || row.id,
   caseId: row.case_id || row.caseId,
   title: row.title,
   type: row.type,
   description: row.description || '',
-  fileUrl: row.file_url || '',
-  fileHash: row.file_hash || '',
   uploadedBy: row.uploaded_by || 'Unknown',
-  uploadedAt: row.created_at || new Date().toISOString(),
+  timestamp: row.created_at || new Date().toISOString(),
   linkedEvidenceIds: row.linked_evidence_ids || [],
 });
 
@@ -147,19 +143,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
   const [documents, setDocuments] = useState<LegalDocument[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-
-  // Initialize Theme
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark';
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
 
   const loadData = async () => {
     try {
@@ -214,15 +197,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     // Load initial state once on mount
     loadData();
   }, []);
-
-  const toggleTheme = () => {
-    setTheme(prev => {
-      const newTheme = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('theme', newTheme);
-      document.documentElement.classList.toggle('dark', newTheme === 'dark');
-      return newTheme;
-    });
-  };
 
   const addLog = (logData: Omit<AccessLog, 'id' | 'timestamp'>) => {
     const newLog: AccessLog = {
@@ -582,8 +556,6 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       logs,
       documents,
       users,
-      theme,
-      toggleTheme,
       login,
       logout,
       updateUser,
