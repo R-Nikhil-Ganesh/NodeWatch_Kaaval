@@ -104,13 +104,13 @@ const mapDbEvidenceToEvidence = (row: any): Evidence => ({
 });
 
 const mapDbDocumentToDocument = (row: any): LegalDocument => ({
-  docId: row.document_id || row.id,
+  docId: row.document_id || row.docId || row.id || '',
   caseId: row.case_id || row.caseId,
   title: row.title,
   type: row.type,
   description: row.description || '',
-  uploadedBy: row.uploaded_by || 'Unknown',
-  timestamp: row.created_at || new Date().toISOString(),
+  uploadedBy: row.uploaded_by_name || row.uploaded_by || 'Unknown',
+  timestamp: row.created_at || row.timestamp || new Date().toISOString(),
   linkedEvidenceIds: row.linked_evidence_ids || [],
 });
 

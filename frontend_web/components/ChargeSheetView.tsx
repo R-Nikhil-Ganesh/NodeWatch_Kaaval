@@ -6,7 +6,7 @@ import { LegalDocument, UserRole, Evidence, IntegrityStatus, CaseStatus } from '
 import { Gavel, Scale, File as FileIcon, CheckSquare } from 'lucide-react';
 
 export const ChargeSheetView = () => {
-    const { documents, cases, evidence, currentUser, addDocument } = useStore();
+    const { documents, cases, evidence, currentUser, addDocument, updateCaseStatus } = useStore();
 
     const [chargeSheetModalOpen, setChargeSheetModalOpen] = useState(false);
     const [selectedCaseId, setSelectedCaseId] = useState<string>('');
@@ -37,6 +37,13 @@ export const ChargeSheetView = () => {
         };
 
         addDocument(newDoc);
+
+        // Filing the chargesheet submits the case to court so it appears in the Legal Portal
+        const currentCase = cases.find(c => c.caseId === selectedCaseId);
+        if (currentCase && currentCase.status !== CaseStatus.SUBMITTED_TO_COURT) {
+            updateCaseStatus(selectedCaseId, CaseStatus.SUBMITTED_TO_COURT);
+        }
+
         setChargeSheetModalOpen(false);
         setChargeData({ accused: '', charges: '', details: '' });
         setChargeEvidenceIds([]);

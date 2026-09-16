@@ -47,6 +47,18 @@ router.post('/', async (req, res) => {
       details: { title, hash: fileHash },
     });
 
+    if (type === 'CHARGE_SHEET') {
+      await query(
+        `UPDATE cases SET
+           status = 'SUBMITTED_TO_COURT'::case_status,
+           court_stage = COALESCE(court_stage, 'CHARGESHEET_FILED'),
+           updated_at = NOW(),
+           version = version + 1
+         WHERE case_id = $1 AND is_deleted = FALSE`,
+        [caseId]
+      );
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
