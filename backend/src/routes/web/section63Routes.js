@@ -1,10 +1,13 @@
 import express from 'express';
+import multer from 'multer';
 import { query, getClient } from '../../db/index.js';
 import { auditService } from '../../services/auditService.js';
+import { storageService } from '../../services/storageService.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-router.post('/:id/section63', async (req, res) => {
+router.post('/:id/section63', upload.single('certificateFile'), async (req, res) => {
   try {
     const { id } = req.params;
     const { certificateRef, actorId, actorRole, deviceSpecification, certificatePdfUrl } = req.body || {};
@@ -12,6 +15,21 @@ router.post('/:id/section63', async (req, res) => {
     const { rows: evRows } = await query(`SELECT * FROM evidence WHERE evidence_id = $1`, [id]);
     if (!evRows.length) return res.status(404).json({ message: 'Evidence not found' });
     const ev = evRows[0];
+
+    // The certificate PDF the analyst actually picked is uploaded to MinIO
+    // here — the previous flow only ever sent a synthesized filename string
+    // (`CERT-${Date.now()}.pdf`) and discarded the real file the user chose.
+    let resolvedPdfUrl = certificatePdfUrl || null;
+    if (req.file) {
+      const objectKey = `certificates/${ev.case_id}/${id}_${Date.now()}.pdf`;
+      await storageService.uploadFile({
+        key: objectKey,
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype || 'application/pdf',
+        metadata: { evidenceId: id, caseId: ev.case_id },
+      });
+      resolvedPdfUrl = `minio://${objectKey}`;
+    }
 
     const { rows: uRows } = await query(`SELECT designation FROM users WHERE user_id = $1`, [actorId]);
     const designation = uRows[0]?.designation || 'Authorised Certifier';
@@ -27,7 +45,7 @@ router.post('/:id/section63', async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,'SHA-256',$7,$8)
          ON CONFLICT (certificate_ref) DO UPDATE SET issued_at = NOW()
          RETURNING *`,
-        [certificateRef, id, ev.case_id, actorId, designation, deviceSpecification || null, ev.file_hash, certificatePdfUrl || null]
+        [certificateRef, id, ev.case_id, actorId, designation, deviceSpecification || null, ev.file_hash, resolvedPdfUrl]
       );
       cert = certRows[0];
 
@@ -74,7 +92,11 @@ router.post('/:id/section63', async (req, res) => {
       details: { title: certificateRef },
     });
 
-    res.json(cert);
+    let presignedPdfUrl = cert.certificate_pdf_url;
+    if (presignedPdfUrl && presignedPdfUrl.startsWith('minio://')) {
+      presignedPdfUrl = await storageService.getPresignedUrl(presignedPdfUrl.replace('minio://', '')).catch(() => presignedPdfUrl);
+    }
+    res.json({ ...cert, certificatePdfUri: presignedPdfUrl });
   } catch (err) {
     console.error('[Section63 Error]', err);
     res.status(500).json({ message: 'Server error' });

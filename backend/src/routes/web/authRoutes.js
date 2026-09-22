@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../../db/index.js';
 import { auditService } from '../../services/auditService.js';
 import { config } from '../../config/index.js';
+import { storageService } from '../../services/storageService.js';
 
 const router = express.Router();
 
@@ -43,6 +44,10 @@ router.post('/login', async (req, res) => {
     });
 
     const { password_hash, ...safeUser } = user;
+    if (safeUser.profile_image_url && safeUser.profile_image_url.startsWith('minio://')) {
+      const key = safeUser.profile_image_url.replace('minio://', '');
+      safeUser.profile_image_url = await storageService.getPresignedUrl(key).catch(() => safeUser.profile_image_url);
+    }
     res.json({
       user: {
         id: safeUser.user_id,

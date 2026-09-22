@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Package, Users, ChevronRight } from 'lucide-react';
 import { Card, Button, Badge, Table } from '../Common';
 import { searchCases } from '../../services/caseService';
+import type { IOCase } from '../../services/types';
 
 interface NavProps {
   onNavigate: (view: string, id?: string) => void;
@@ -24,16 +25,8 @@ const STATUS_TABS: CaseFilerStatus[] = [
   'Closed',
 ];
 
-type CocStatus = 'Verified' | 'Pending' | 'Exception';
-type IOCaseStatus =
-  | 'Open'
-  | 'Under Investigation'
-  | 'Awaiting Forensics'
-  | 'Charge Sheet Preparation'
-  | 'Closed';
-
-const CocBadge = ({ status }: { status: CocStatus }) => {
-  const map: Record<CocStatus, 'green' | 'yellow' | 'red'> = {
+const CocBadge = ({ status }: { status: IOCase['cocStatus'] }) => {
+  const map: Record<IOCase['cocStatus'], 'green' | 'yellow' | 'red'> = {
     Verified: 'green',
     Pending: 'yellow',
     Exception: 'red',
@@ -41,13 +34,15 @@ const CocBadge = ({ status }: { status: CocStatus }) => {
   return <Badge color={map[status]}>{status}</Badge>;
 };
 
-const StatusBadge = ({ status }: { status: IOCaseStatus }) => {
-  const map: Record<IOCaseStatus, 'gray' | 'blue' | 'yellow' | 'green' | 'red'> = {
+const StatusBadge = ({ status }: { status: IOCase['status'] }) => {
+  const map: Record<IOCase['status'], 'gray' | 'blue' | 'yellow' | 'green' | 'red'> = {
     Open: 'gray',
     'Under Investigation': 'blue',
     'Awaiting Forensics': 'yellow',
     'Charge Sheet Preparation': 'green',
+    'Submitted to Court': 'blue',
     Closed: 'gray',
+    Frozen: 'red',
   };
   return <Badge color={map[status]}>{status}</Badge>;
 };
@@ -74,15 +69,41 @@ const formatDate = (iso: string) =>
 export const PoliceCasesPage: React.FC<NavProps> = ({ onNavigate }) => {
   const [activeStatus, setActiveStatus] = useState<CaseFilerStatus>('All');
   const [query, setQuery] = useState('');
+  const [cases, setCases] = useState<IOCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const cases = useMemo(
-    () =>
+  // Filtering happens server-side, so the search box is debounced to avoid a
+  // request per keystroke. The status pills go through the same effect.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const timer = setTimeout(() => {
       searchCases({
         status: activeStatus === 'All' ? undefined : activeStatus,
         query: query.trim() || undefined,
-      }),
-    [activeStatus, query],
-  );
+      })
+        .then(rows => {
+          if (cancelled) return;
+          setCases(rows);
+          setError(null);
+        })
+        .catch((err: any) => {
+          if (cancelled) return;
+          setCases([]);
+          setError(err?.message || 'Unable to load cases.');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, query.trim() ? 300 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeStatus, query]);
 
   return (
     <div className="space-y-5">
@@ -131,19 +152,36 @@ export const PoliceCasesPage: React.FC<NavProps> = ({ onNavigate }) => {
 
       {/* ── Results count ──────────────────────────────────────────────── */}
       <p className="text-xs text-ink-400">
-        Showing <span className="font-semibold text-ink-700">{cases.length}</span> case
-        {cases.length !== 1 ? 's' : ''}
-        {activeStatus !== 'All' && (
+        {loading ? (
+          <>Loading cases…</>
+        ) : (
           <>
-            {' '}
-            · filtered by <span className="font-semibold text-ink-700">{activeStatus}</span>
+            Showing <span className="font-semibold text-ink-700">{cases.length}</span> case
+            {cases.length !== 1 ? 's' : ''}
+            {activeStatus !== 'All' && (
+              <>
+                {' '}
+                · filtered by <span className="font-semibold text-ink-700">{activeStatus}</span>
+              </>
+            )}
           </>
         )}
       </p>
 
       {/* ── Table / Empty state ─────────────────────────────────────────── */}
       <Card padded={false}>
-        {cases.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-ink-500">
+            <div className="w-6 h-6 border-2 border-navy-900 border-t-transparent rounded-full animate-spin mr-3" />
+            <span className="text-sm">Loading cases…</span>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 text-ink-400">
+            <Search size={36} className="mb-3 opacity-30" />
+            <p className="text-sm font-medium text-status-urgent">{error}</p>
+            <p className="text-xs mt-1">The case register could not be reached.</p>
+          </div>
+        ) : cases.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-ink-400">
             <Search size={36} className="mb-3 opacity-30" />
             <p className="text-sm font-medium">No cases match your search</p>
@@ -167,9 +205,9 @@ export const PoliceCasesPage: React.FC<NavProps> = ({ onNavigate }) => {
           >
             {cases.map(c => (
               <tr
-                key={c.firNumber}
+                key={c.caseId}
                 className="hover:bg-paper-50 transition-colors cursor-pointer"
-                onClick={() => onNavigate('case_detail', c.firNumber)}
+                onClick={() => onNavigate('case_detail', c.caseId)}
               >
                 {/* FIR No */}
                 <td className="px-5 py-3 whitespace-nowrap">
@@ -233,7 +271,7 @@ export const PoliceCasesPage: React.FC<NavProps> = ({ onNavigate }) => {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => onNavigate('case_detail', c.firNumber)}
+                    onClick={() => onNavigate('case_detail', c.caseId)}
                   >
                     View Details <ChevronRight size={13} />
                   </Button>

@@ -2,8 +2,8 @@
 // Court Management System — Judicial Case & Evidence Portal
 // Domain types. Standalone from the Kaaval police/forensics apps — this app
 // only models what a court-side user (Judge / Prosecutor / Defense / Registrar)
-// needs to see. Backend + Hyperledger wiring comes later; today every value
-// is served from src/data/mockData.ts.
+// needs to see. Every value is served from Postgres via /api/legal/* — see
+// services/api.ts.
 // ---------------------------------------------------------------------------
 
 export enum LegalDesignation {

@@ -209,8 +209,6 @@ export default function EvidenceScreen({ route, navigation }: Props) {
   };
 
   const analyzeDocument = async (asset: ImagePicker.ImagePickerAsset) => {
-    Alert.alert("Syncing with Blockchain", "Registering evidence with immutable ledger...");
-    
     const location = activeCase?.location || 'Crime Scene';
 
     setLoading(true);
@@ -242,8 +240,13 @@ export default function EvidenceScreen({ route, navigation }: Props) {
       };
       
       // Upload to backend (will persist file and metadata) and register in context
-      await updateCaseEvidence(caseId, newEvidence);
-      Alert.alert("Success", "Evidence registered on immutable ledger!");
+      const { synced } = await updateCaseEvidence(caseId, newEvidence);
+      Alert.alert(
+        'Evidence Saved',
+        synced
+          ? 'Evidence uploaded and registered with the case.'
+          : 'Evidence saved locally and queued for upload — it will sync automatically once a connection is available.'
+      );
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to register evidence");
       console.error('Evidence upload error:', err);
@@ -335,7 +338,7 @@ export default function EvidenceScreen({ route, navigation }: Props) {
                   <Text style={styles.nodeTitle}>{item.name}</Text>
                   <Text style={styles.nodeTime}>{new Date(item.timestamp).toLocaleString()}</Text>
                   <Text style={styles.nodeHash}>{item.location}</Text>
-                  <Text style={[styles.nodeHash, { color: COLORS.secondary }]}>IPFS: {item.hash.substring(0, 15)}...</Text>
+                  <Text style={[styles.nodeHash, { color: COLORS.secondary }]}>SHA-256: {item.hash.substring(0, 15)}...</Text>
                   <Image source={{ uri: item.uri }} style={styles.nodeImage} />
                 </View>
               </View>

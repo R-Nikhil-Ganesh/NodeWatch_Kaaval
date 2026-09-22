@@ -32,7 +32,7 @@ interface AppContextType {
   logout: () => Promise<void>;
   cases: Case[];
   addCase: (newCase: Case) => void;
-  updateCaseEvidence: (caseId: string, evidence: any) => void;
+  updateCaseEvidence: (caseId: string, evidence: any) => Promise<{ synced: boolean }>;
   loading: boolean;
   error: string | null;
 }
@@ -93,6 +93,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         // 4. Attempt background pull from central API (non-blocking)
         pullRemoteCases(storedToken);
+        pullRemoteUsers();
 
       } catch (e) {
         console.error('[AppProvider] Boot error:', e);
@@ -109,6 +110,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // ─── BACKGROUND PULL ─────────────────────────────────────────────────────
+
+  // Populates the users list the admin dashboard counts from. Without this
+  // the officer/forensics tiles always read zero, since `users` was only ever
+  // appended to locally by registerUser.
+  const pullRemoteUsers = async () => {
+    try {
+      const remoteUsers = await apiService.listUsers();
+      if (!remoteUsers || !remoteUsers.length) return;
+      setUsers(
+        remoteUsers.map((u: any) => ({
+          id: u.user_id || u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          designation: u.designation,
+          badgeNumber: u.badge_number || u.badgeNumber,
+          org_msp: u.org_msp,
+          username: u.username,
+        }))
+      );
+    } catch (e) {
+      // Offline is expected on mobile — keep whatever is already in state.
+      console.log('[AppProvider] User pull skipped:', (e as Error).message);
+    }
+  };
 
   const pullRemoteCases = async (authToken?: string | null) => {
     try {
@@ -199,7 +225,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // ─── UPDATE CASE EVIDENCE ─────────────────────────────────────────────────
 
-  const updateCaseEvidence = async (caseId: string, newEvidence: any) => {
+  // Returns whether the evidence actually reached the backend in this call,
+  // so the caller can show an honest "uploaded" vs "saved, queued" message
+  // instead of always claiming success once the local write succeeds.
+  const updateCaseEvidence = async (caseId: string, newEvidence: any): Promise<{ synced: boolean }> => {
     setLoading(true);
     setError(null);
     try {
@@ -263,7 +292,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           created_at:     now,
           updated_at:     new Date().toISOString(),
         });
+        return { synced: true };
       }
+      return { synced: false };
     } catch (err: any) {
       if (err?.status) {
         // Server responded and rejected the upload (e.g. bad evidence type,
@@ -274,6 +305,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
       // No response at all — genuine offline/network failure; stays queued for the sync worker
       console.log('[updateCaseEvidence] Offline, queued:', err.message);
+      return { synced: false };
     } finally {
       setLoading(false);
     }

@@ -9,6 +9,10 @@ export enum UserRole {
 export enum CaseStatus {
   OPEN = 'OPEN',
   UNDER_INVESTIGATION = 'UNDER_INVESTIGATION',
+  // Investigation sub-states used by the police portal. They sit between
+  // UNDER_INVESTIGATION and SUBMITTED_TO_COURT in the case lifecycle.
+  AWAITING_FORENSICS = 'AWAITING_FORENSICS',
+  CHARGE_SHEET_PREPARATION = 'CHARGE_SHEET_PREPARATION',
   SUBMITTED_TO_COURT = 'SUBMITTED_TO_COURT',
   CLOSED = 'CLOSED',
   FROZEN = 'FROZEN'
@@ -128,6 +132,9 @@ export interface Case {
   createdAt: string;
   assignedToForensics?: string; // User ID
   priority?: boolean; // Admin-flagged highest-priority case (see utils/casePriority.ts)
+  firNumber?: string; // Human case reference, e.g. "142/2026" (display only)
+  policeStation?: string;
+  district?: string;
 }
 
 // TN Specific Ranks for Dropdowns

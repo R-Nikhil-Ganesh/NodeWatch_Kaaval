@@ -4,8 +4,8 @@ import {
   Microscope, FileCheck, Eye
 } from 'lucide-react';
 import { Card, Button, Table } from '../Common';
-import { getAllForensicRecords, getForensicSummary } from '../../services/forensicService';
-import { getEvidenceById } from '../../services/evidenceService';
+import { getAllForensicRecords, getForensicSummary, ForensicSummary } from '../../services/forensicService';
+import { getAllEvidence } from '../../services/evidenceService';
 import type { ForensicRecord } from '../../services/types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -44,6 +44,10 @@ const StatusPill: React.FC<{ status: ForensicRecord['examinationStatus'] }> = ({
       cls: 'bg-status-resolvedBg text-status-resolved border-status-resolved/20',
       icon: <FileCheck size={11} />,
     },
+    'Not Required': {
+      cls: 'bg-paper-100 text-ink-400 border-line-200',
+      icon: <Clock size={11} />,
+    },
   };
   const { cls, icon } = map[status];
   return (
@@ -73,15 +77,15 @@ const SummaryCard: React.FC<{
 // ── Case progress bar ────────────────────────────────────────────────────────
 
 const CaseProgressBar: React.FC<{
-  caseId: string;
+  caseLabel: string;
   completed: number;
   total: number;
-}> = ({ caseId, completed, total }) => {
+}> = ({ caseLabel, completed, total }) => {
   const pct = total > 0 ? (completed / total) * 100 : 0;
   return (
     <div className="py-3">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-semibold text-navy-900">{caseId}</span>
+        <span className="text-sm font-semibold text-navy-900">{caseLabel}</span>
         <span className="text-xs font-medium text-ink-500">{completed}/{total} items examined</span>
       </div>
       <div className="h-2 bg-paper-100 rounded-full overflow-hidden">
@@ -103,11 +107,17 @@ interface Props {
   onNavigate: (view: string, id?: string) => void;
 }
 
-// ── Evidence type lookup cache (minimal) ──────────────────────────────────────
+// ── Evidence type lookup ─────────────────────────────────────────────────────
+// One request for the whole set rather than one per forensic record: now that
+// these are real HTTP calls, per-row lookups meant N round-trips to render a
+// single column.
 
-async function fetchEvidenceType(evidenceId: string): Promise<string> {
-  const ev = await getEvidenceById(evidenceId);
-  return ev?.type ?? 'Unknown';
+async function fetchEvidenceTypeMap(): Promise<Record<string, string>> {
+  const all = await getAllEvidence();
+  return all.reduce<Record<string, string>>((acc, ev) => {
+    acc[ev.evidenceId] = ev.type || 'Unknown';
+    return acc;
+  }, {});
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -116,29 +126,40 @@ async function fetchEvidenceType(evidenceId: string): Promise<string> {
 
 const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
   const [records, setRecords] = useState<ForensicRecord[]>([]);
-  const [summary, setSummary] = useState<Record<string, number>>({});
-  const [summary, setSummary] = useState<any>({});
+  const [summary, setSummary] = useState<ForensicSummary>({
+    pendingSubmission: 0,
+    inTransit: 0,
+    receivedByFSL: 0,
+    underExamination: 0,
+    examinationComplete: 0,
+    reportAvailable: 0,
+    notRequired: 0,
+  });
   const [evidenceTypes, setEvidenceTypes] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [recs, sum] = await Promise.all([getAllForensicRecords(), getForensicSummary()]);
-      setRecords(recs);
-      setSummary(sum);
-
-      // Fetch evidence types in parallel
-      const typeMap: Record<string, string> = {};
-      await Promise.all(
-        recs.map(async r => {
-          typeMap[r.evidenceId] = await fetchEvidenceType(r.evidenceId);
-        })
-      );
-      setEvidenceTypes(typeMap);
-      setLoading(false);
+      try {
+        const [recs, sum, typeMap] = await Promise.all([
+          getAllForensicRecords(),
+          getForensicSummary(),
+          fetchEvidenceTypeMap(),
+        ]);
+        setRecords(recs);
+        setSummary(sum);
+        setEvidenceTypes(typeMap);
+        setError(null);
+      } catch (err: any) {
+        setRecords([]);
+        setError(err?.message || 'Unable to load forensic records.');
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, []);
@@ -157,10 +178,13 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
     return true;
   });
 
-  // Group by case for progress bars
-  const caseGroups: Record<string, { completed: number; total: number }> = {};
+  // Group by case for progress bars. Keyed on the real caseId, labelled with
+  // the FIR number the officer actually recognises.
+  const caseGroups: Record<string, { completed: number; total: number; label: string }> = {};
   for (const r of records) {
-    if (!caseGroups[r.caseId]) caseGroups[r.caseId] = { completed: 0, total: 0 };
+    if (!caseGroups[r.caseId]) {
+      caseGroups[r.caseId] = { completed: 0, total: 0, label: r.caseFirNumber ?? r.caseId };
+    }
     caseGroups[r.caseId].total++;
     if (r.examinationStatus === 'Examination Complete' || r.examinationStatus === 'Report Available') {
       caseGroups[r.caseId].completed++;
@@ -170,16 +194,17 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
 
   const statusOrders: ForensicRecord['examinationStatus'][] = [
     'Pending Submission', 'In Transit', 'Received by FSL',
-    'Under Examination', 'Examination Complete', 'Report Available'
+    'Under Examination', 'Examination Complete', 'Report Available',
+    'Not Required'
   ];
 
-  const summaryDefs = [
-    { key: 'Pending Submission', label: 'Pending Submission', icon: <Clock size={18} />, color: 'text-ink-400' },
-    { key: 'In Transit', label: 'In Transit', icon: <Truck size={18} />, color: 'text-navy-700' },
-    { key: 'Received by FSL', label: 'Received by FSL', icon: <PackageCheck size={18} />, color: 'text-indigo-600' },
-    { key: 'Under Examination', label: 'Under Examination', icon: <Microscope size={18} />, color: 'text-status-pending' },
-    { key: 'Examination Complete', label: 'Examination Complete', icon: <CheckCircle size={18} />, color: 'text-teal-600' },
-    { key: 'Report Available', label: 'Report Available', icon: <FileCheck size={18} />, color: 'text-status-resolved' },
+  const summaryDefs: { key: keyof ForensicSummary; label: string; icon: React.ReactNode; color: string }[] = [
+    { key: 'pendingSubmission', label: 'Pending Submission', icon: <Clock size={18} />, color: 'text-ink-400' },
+    { key: 'inTransit', label: 'In Transit', icon: <Truck size={18} />, color: 'text-navy-700' },
+    { key: 'receivedByFSL', label: 'Received by FSL', icon: <PackageCheck size={18} />, color: 'text-indigo-600' },
+    { key: 'underExamination', label: 'Under Examination', icon: <Microscope size={18} />, color: 'text-status-pending' },
+    { key: 'examinationComplete', label: 'Examination Complete', icon: <CheckCircle size={18} />, color: 'text-teal-600' },
+    { key: 'reportAvailable', label: 'Report Available', icon: <FileCheck size={18} />, color: 'text-status-resolved' },
   ];
 
   const selectClass = "px-3 py-2 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500 transition-colors";
@@ -195,6 +220,13 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       <div className="p-6 space-y-5">
+        {error && (
+          <div className="flex items-center gap-2 border border-status-urgent/20 bg-status-urgentBg text-status-urgent rounded-sm px-4 py-3">
+            <Clock size={16} className="shrink-0" />
+            <span className="text-sm font-medium">{error}</span>
+          </div>
+        )}
+
         {/* Summary Stats */}
         <div className="grid grid-cols-6 gap-3">
           {summaryDefs.map(def => (
@@ -215,7 +247,7 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
               {topCases.map(([caseId, data]) => (
                 <CaseProgressBar
                   key={caseId}
-                  caseId={caseId}
+                  caseLabel={data.label}
                   completed={data.completed}
                   total={data.total}
                 />
@@ -282,7 +314,14 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
                   <td className="px-5 py-3 whitespace-nowrap text-xs text-ink-600">
                     {evidenceTypes[fr.evidenceId] ?? '—'}
                   </td>
-                  <td className="px-5 py-3 whitespace-nowrap text-xs font-medium text-navy-700">{fr.caseId}</td>
+                  <td className="px-5 py-3 whitespace-nowrap text-xs font-medium text-navy-700">
+                    <button
+                      onClick={() => onNavigate('case_detail', fr.caseId)}
+                      className="hover:text-navy-900 hover:underline"
+                    >
+                      {fr.caseFirNumber ?? fr.caseId}
+                    </button>
+                  </td>
                   <td className="px-5 py-3 whitespace-nowrap font-mono text-xs text-ink-700">{fr.fslRef}</td>
                   <td className="px-5 py-3 whitespace-nowrap text-xs text-ink-700">{fr.fslName}</td>
                   <td className="px-5 py-3 whitespace-nowrap text-xs text-ink-500">{fmtDate(fr.submittedDate)}</td>

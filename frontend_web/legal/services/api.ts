@@ -77,6 +77,35 @@ export const mapUser = (u: any): LegalUser => ({
   profileImage: u.profile_image_url || undefined,
 });
 
+/**
+ * Runs a real server-side integrity check on a digital exhibit: the stored
+ * hash is compared against the hash anchored on the ledger and the outcome is
+ * recorded in the audit trail.
+ */
+export async function verifyEvidenceRequest(
+  evidenceId: string
+): Promise<{ success: boolean; message: string; currentHash: string; ledgerHash: string }> {
+  return request(`/api/investigation/evidence/${encodeURIComponent(evidenceId)}/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ actorRole: 'LEGAL' }),
+  });
+}
+
+/**
+ * Persists editable profile fields. The profile form previously only flipped
+ * a local "Saved" flag, so any edit was silently discarded on reload.
+ */
+export async function updateProfileRequest(
+  userId: string,
+  changes: { phone?: string; name?: string; designation?: string }
+): Promise<LegalUser> {
+  const updated = await request<any>(`/api/legal/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ ...changes, actorId: userId, actorRole: 'LEGAL' }),
+  });
+  return mapUser(updated);
+}
+
 export async function loginRequest(email: string, password: string): Promise<{ user: LegalUser; token: string }> {
   const data = await request<{ user: any; token: string }>('/api/legal/auth/login', {
     method: 'POST',
@@ -94,13 +123,15 @@ export async function logoutRequest(userId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Custody trail synthesis
-// Neither case_documents nor evidence carry a per-item custody-event log in
-// the current schema (only case-level and evidence-level *transfer* tables
-// do, and those aren't populated by the read-only legal frontend). Until
-// that's modelled, we synthesise a single accurate "filed / collected" event
-// from the row's own uploader + timestamp so the UI never renders empty.
+// Custody trail
 // ---------------------------------------------------------------------------
+// case_documents (FIRs, warrants, chargesheets) have no per-item custody log
+// in the schema — only case-level transfer tables do, and a single filing
+// event is the accurate summary for those. Evidence, however, DOES have a
+// real event-by-event log in `custody_events` (populated by the police/mobile
+// chain-of-custody flow), reachable via the investigation API. This used to
+// be ignored in favour of a single fabricated "Collected" event for every
+// exhibit — that discarded real transfer/seal/FSL history the DB already had.
 const singleCustodyEvent = (
   action: CustodyEvent['action'],
   timestamp: string,
@@ -111,6 +142,37 @@ const singleCustodyEvent = (
 ): CustodyEvent[] => [
   { eventId: `${timestamp}-1`, timestamp, fromCustodian, fromRole, toCustodian, toRole, action },
 ];
+
+const CUSTODY_ACTION_MAP: Record<string, CustodyEvent['action']> = {
+  'Evidence Collected': 'Collected',
+  'Evidence Sealed': 'Reviewed',
+  'Custody Transferred': 'Transferred',
+  'Custody Received': 'Transferred',
+  'Transferred to FSL': 'Transferred',
+  'Received by FSL': 'Transferred',
+  'Forensic Examination Started': 'Reviewed',
+  'Forensic Report Filed': 'Reviewed',
+  'Evidence Returned': 'Returned to Malkhana',
+};
+
+const fetchRealCustodyTrail = async (evidenceId: string): Promise<CustodyEvent[] | null> => {
+  try {
+    const events = await request<any[]>(`/api/investigation/custody/${encodeURIComponent(evidenceId)}`);
+    if (!events.length) return null;
+    return events.map((e) => ({
+      eventId: e.id,
+      timestamp: e.timestamp,
+      fromCustodian: e.fromCustodian || e.actor || 'Unknown',
+      fromRole: '',
+      toCustodian: e.toCustodian || e.actor || 'Unknown',
+      toRole: '',
+      action: CUSTODY_ACTION_MAP[e.eventType] || 'Reviewed',
+      notes: e.notes,
+    }));
+  } catch {
+    return null;
+  }
+};
 
 // ---------------------------------------------------------------------------
 // Cases
@@ -241,14 +303,16 @@ const DIGITAL_FILE_TYPE_MAP: Record<string, string> = {
   DISK_IMAGE: 'DISK_IMAGE',
 };
 
-const mapEvidence = (row: any): EvidenceItem => {
+const mapEvidence = (row: any, realTrail: CustodyEvent[] | null): EvidenceItem => {
   const evidenceId = row.evidenceId || row.evidence_id;
   const caseId = row.caseId || row.case_id;
   const collectedBy = row.uploaded_by_name || 'Unknown';
   const collectedByDesignation = row.uploaded_by_designation || '';
   const collectedAt = row.collected_timestamp || row.created_at;
   const currentCustodian = row.current_custodian_name || row.custodian_display_name || '—';
-  const trail = singleCustodyEvent('Collected', collectedAt, collectedBy, collectedByDesignation, currentCustodian, 'Custodian');
+  // Falls back to a single synthesised event only when the exhibit genuinely
+  // has no logged custody history yet.
+  const trail = realTrail || singleCustodyEvent('Collected', collectedAt, collectedBy, collectedByDesignation, currentCustodian, 'Custodian');
 
   if (row.type === 'PHYSICAL') {
     return {
@@ -293,7 +357,10 @@ const mapEvidence = (row: any): EvidenceItem => {
 
 export async function fetchEvidence(caseId: string): Promise<EvidenceItem[]> {
   const rows = await request<any[]>(`/api/legal/evidence?caseId=${encodeURIComponent(caseId)}`);
-  return rows.map(mapEvidence);
+  const trails = await Promise.all(
+    rows.map((r) => fetchRealCustodyTrail(r.evidenceId || r.evidence_id))
+  );
+  return rows.map((row, i) => mapEvidence(row, trails[i]));
 }
 
 // ---------------------------------------------------------------------------

@@ -18,16 +18,30 @@ interface AppState {
   updateUser: (updatedUser: User) => void;
   addCase: (newCase: Case) => void;
   addEvidence: (newEvidence: Evidence) => void;
+  uploadEvidenceFile: (params: {
+    caseId: string;
+    file: File;
+    name?: string;
+    type: string;
+    location: string;
+    notes?: string;
+    classification?: EvidenceClassification;
+    riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH';
+    sourceHash?: string;
+    liftingVideo?: File;
+    linkedEvidenceIds?: string[];
+    visibility?: EvidenceVisibility;
+  }) => Promise<{ ok: boolean; message?: string }>;
   addLog: (log: Omit<AccessLog, 'id' | 'timestamp'>) => void;
   addDocument: (doc: LegalDocument) => void;
   updateCaseStatus: (caseId: string, status: CaseStatus) => void;
-  verifyEvidence: (evidenceId: string) => void;
+  verifyEvidence: (evidenceId: string) => Promise<{ isMatch: boolean } | null>;
   approveEvidence: (evidenceId: string) => void;
   toggleIntegrityHack: (evidenceId: string) => void;
   updateEvidenceVisibility: (evidenceId: string, visibility: EvidenceVisibility) => void;
   transferCaseCustody: (caseId: string, newCustodianId: string, newCustodianRole: string, notes?: string, overrideReason?: string) => void;
   reassignCase: (caseId: string, updates: { assignedForensicsId?: string; currentCustodianId?: string }) => void;
-  issueSection63Certificate: (evidenceId: string, certificateRef: string) => void;
+  issueSection63Certificate: (evidenceId: string, certificateRef: string, certificateFile?: File) => void;
   refreshData: () => Promise<void>;
 }
 
@@ -56,6 +70,9 @@ const mapDbCaseToCase = (row: any): Case => {
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     assignedToForensics: row.forensics_name || row.assigned_forensics_id || row.assignedToForensics || undefined,
     priority: row.is_priority ?? row.priority ?? false,
+    firNumber: row.fir_number || row.firNumber || undefined,
+    policeStation: row.police_station || row.policeStation || undefined,
+    district: row.district || undefined,
   };
 };
 
@@ -366,6 +383,42 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }).catch(err => console.error('Failed to save evidence to unified backend', err));
   };
 
+  // Uploads the real file bytes to the backend (which stores them in MinIO)
+  // instead of computing a hash client-side and posting a browser-only
+  // blob: URL as `fileUrl` — that string never resolved to anything once the
+  // tab closed, so the "evidence" had no actual file behind it.
+  const uploadEvidenceFile: AppState['uploadEvidenceFile'] = async (params) => {
+    const form = new FormData();
+    form.append('file', params.file);
+    form.append('caseId', params.caseId);
+    form.append('type', params.type);
+    form.append('location', params.location);
+    if (params.name) form.append('name', params.name);
+    if (params.notes) form.append('notes', params.notes);
+    if (params.classification) form.append('classification', params.classification);
+    if (params.riskLevel) form.append('riskLevel', params.riskLevel);
+    if (params.sourceHash) form.append('sourceHash', params.sourceHash);
+    if (params.liftingVideo) form.append('liftingVideo', params.liftingVideo);
+    form.append('linkedEvidenceIds', JSON.stringify(params.linkedEvidenceIds || []));
+    if (params.visibility) form.append('visibility', JSON.stringify(params.visibility));
+    if (currentUser?.id) form.append('actorId', currentUser.id);
+    if (currentUser?.role) form.append('actorRole', currentUser.role);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/evidence/upload`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, message: body.message || `Upload failed (${res.status})` };
+      }
+      const saved = await res.json();
+      setEvidence(prev => [mapDbEvidenceToEvidence(saved), ...prev]);
+      loadData();
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, message: err?.message || 'Unable to reach the upload service.' };
+    }
+  };
+
   const addDocument = (doc: LegalDocument) => {
     setDocuments(prev => [doc, ...prev]);
 
@@ -404,24 +457,37 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     });
   };
 
-  const verifyEvidence = (evidenceId: string) => {
+  // Returns the real server-computed outcome (or null on failure) so callers
+  // that need to summarise multiple verifications — e.g. the Legal
+  // dashboard's "verify all evidence for a case" — can await the actual
+  // result instead of reading the pre-verification snapshot.
+  const verifyEvidence = async (evidenceId: string): Promise<{ isMatch: boolean } | null> => {
     const target = evidence.find(e => e.evidenceId === evidenceId);
     const isCompromised = target?.integrityStatus === IntegrityStatus.COMPROMISED;
     const newStatus = isCompromised ? IntegrityStatus.COMPROMISED : IntegrityStatus.VERIFIED;
 
     setEvidence(prev => prev.map(e => e.evidenceId === evidenceId ? { ...e, integrityStatus: newStatus } : e));
 
-    fetch(`${API_BASE}/api/forensics/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        evidenceId,
-        verifiedHash: target?.fileHash,
-        actorId: currentUser?.id,
-        actorRole: currentUser?.role,
-        notes: `Forensic verification performed by ${currentUser?.name || 'Analyst'}`,
-      }),
-    }).then(() => loadData()).catch(err => console.error('Failed to submit forensic verification to unified backend', err));
+    try {
+      const res = await fetch(`${API_BASE}/api/forensics/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evidenceId,
+          verifiedHash: target?.fileHash,
+          actorId: currentUser?.id,
+          actorRole: currentUser?.role,
+          notes: `Forensic verification performed by ${currentUser?.name || 'Analyst'}`,
+        }),
+      });
+      if (!res.ok) return null;
+      const body = await res.json();
+      loadData();
+      return { isMatch: !!body.isMatch };
+    } catch (err) {
+      console.error('Failed to submit forensic verification to unified backend', err);
+      return null;
+    }
   };
 
   const approveEvidence = (evidenceId: string) => {
@@ -445,14 +511,33 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }).then(() => loadData()).catch(err => console.error('Failed to approve evidence in unified backend', err));
   };
 
+  // Admin-only integrity toggle. Flagging COMPROMISED persists via the real
+  // /api/forensics/flag endpoint (audit-logged, queued to the blockchain
+  // outbox); restoring to VERIFIED re-runs the real hash comparison via
+  // verifyEvidence rather than just asserting the value — the previous
+  // implementation only flipped React state, so the change vanished on
+  // refresh and never appeared in the audit trail.
   const toggleIntegrityHack = (evidenceId: string) => {
-    setEvidence(prev => prev.map(e => {
-      if (e.evidenceId === evidenceId) {
-        const newStatus = e.integrityStatus === IntegrityStatus.COMPROMISED ? IntegrityStatus.VERIFIED : IntegrityStatus.COMPROMISED;
-        return { ...e, integrityStatus: newStatus };
-      }
-      return e;
-    }));
+    const target = evidence.find(e => e.evidenceId === evidenceId);
+    if (!target) return;
+
+    if (target.integrityStatus === IntegrityStatus.COMPROMISED) {
+      verifyEvidence(evidenceId);
+      return;
+    }
+
+    setEvidence(prev => prev.map(e => e.evidenceId === evidenceId ? { ...e, integrityStatus: IntegrityStatus.COMPROMISED } : e));
+
+    fetch(`${API_BASE}/api/forensics/flag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        evidenceId,
+        reason: `Manually flagged compromised by ${currentUser?.name || 'Admin'}`,
+        actorId: currentUser?.id,
+        actorRole: currentUser?.role,
+      }),
+    }).then(() => loadData()).catch(err => console.error('Failed to flag evidence in unified backend', err));
   };
 
   const updateEvidenceVisibility = (evidenceId: string, visibility: EvidenceVisibility) => {
@@ -530,7 +615,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       });
   };
 
-  const issueSection63Certificate = (evidenceId: string, certificateRef: string) => {
+  const issueSection63Certificate = (evidenceId: string, certificateRef: string, certificateFile?: File) => {
       setEvidence(prev => prev.map(e => {
           if (e.evidenceId === evidenceId) {
               return { ...e, section63Certificate: certificateRef };
@@ -538,14 +623,18 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
           return e;
       }));
 
+      // The actual certificate PDF is uploaded as multipart — sending only
+      // the reference string (as this used to) discarded the real document
+      // the analyst picked and stored a fabricated filename instead.
+      const form = new FormData();
+      form.append('certificateRef', certificateRef);
+      if (currentUser?.id) form.append('actorId', currentUser.id);
+      if (currentUser?.role) form.append('actorRole', currentUser.role);
+      if (certificateFile) form.append('certificateFile', certificateFile);
+
       fetch(`${API_BASE}/api/evidence/${evidenceId}/section63`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          certificateRef,
-          actorId: currentUser?.id,
-          actorRole: currentUser?.role,
-        }),
+        body: form,
       }).then(() => loadData()).catch(err => console.error('Failed to issue Section 63 Certificate in unified backend', err));
   };
 
@@ -563,6 +652,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       updateUser,
       addCase,
       addEvidence,
+      uploadEvidenceFile,
       addLog,
       addDocument,
       updateCaseStatus,

@@ -223,25 +223,31 @@ export const LegalDashboard = ({ onNavigate }: DashboardProps) => {
     // Constraint: Only show cases marked as SUBMITTED_TO_COURT
     const legalCases = cases.filter(c => c.status === CaseStatus.SUBMITTED_TO_COURT);
 
-    const handleVerifyEvidences = (caseId: string) => {
+    const [isVerifyingCase, setIsVerifyingCase] = useState(false);
+
+    const handleVerifyEvidences = async (caseId: string) => {
         // Find all evidence for this case
         const caseEvidence = evidence.filter(e => e.caseId === caseId && e.approvedForLegal);
-        
+
         if (caseEvidence.length === 0) {
             alert("No accessible evidence found for this case.");
             return;
         }
 
-        // Trigger verification for each approved item
-        caseEvidence.forEach(e => verifyEvidence(e.evidenceId));
+        setIsVerifyingCase(true);
+        // Await every verification's real server result — this previously
+        // fired the requests and immediately summarised the pre-click
+        // snapshot, so the alert reported stale counts before any response
+        // had come back.
+        const results = await Promise.all(caseEvidence.map(e => verifyEvidence(e.evidenceId)));
+        setIsVerifyingCase(false);
 
-        // Calculate Stats
-        const compromisedCount = caseEvidence.filter(e => e.integrityStatus === IntegrityStatus.COMPROMISED).length;
-        const verifiedCount = caseEvidence.length - compromisedCount; // Simplified for demo, technically some might be pending
+        const compromisedCount = results.filter(r => r && !r.isMatch).length;
+        const verifiedCount = results.filter(r => r && r.isMatch).length;
+        const unknownCount = results.length - compromisedCount - verifiedCount;
 
-        // Show Output
-        alert(`VERIFICATION COMPLETE for Case ${caseId}\n\nTotal Items Checked: ${caseEvidence.length}\nVerified: ${verifiedCount}\nIntegrity Warnings: ${compromisedCount}\n\n${compromisedCount > 0 ? "⚠️ CRITICAL: Some evidence hashes do not match the ledger." : "✅ All evidence chains are intact."}`);
-        
+        alert(`VERIFICATION COMPLETE for Case ${caseId}\n\nTotal Items Checked: ${caseEvidence.length}\nVerified: ${verifiedCount}\nIntegrity Warnings: ${compromisedCount}${unknownCount > 0 ? `\nCould not verify: ${unknownCount}` : ''}\n\n${compromisedCount > 0 ? "⚠️ CRITICAL: Some evidence hashes do not match the ledger." : "✅ All evidence chains are intact."}`);
+
         // Navigate after check
         onNavigate('case_detail', caseId);
     };
@@ -261,8 +267,8 @@ export const LegalDashboard = ({ onNavigate }: DashboardProps) => {
                                 <td className="px-6 py-4 text-sm text-ink-700">{c.title}</td>
                                 <td className="px-6 py-4 text-sm text-ink-500">{new Date(c.createdAt).toLocaleDateString()}</td>
                                 <td className="px-6 py-4">
-                                    <Button size="sm" variant="primary" onClick={() => handleVerifyEvidences(c.caseId)} className="flex items-center gap-1">
-                                        <ShieldCheck size={14} /> Verify Case Integrity
+                                    <Button size="sm" variant="primary" disabled={isVerifyingCase} onClick={() => handleVerifyEvidences(c.caseId)} className="flex items-center gap-1">
+                                        <ShieldCheck size={14} /> {isVerifyingCase ? 'Verifying…' : 'Verify Case Integrity'}
                                     </Button>
                                 </td>
                             </tr>
@@ -292,7 +298,10 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
     const handleCreateCase = () => {
         if (!isCreateCaseValid || !currentUser) return;
         addCase({
-            caseId: `CASE-2024-${Math.floor(Math.random() * 1000)}`,
+            // Matches the id format the server mints. The previous form used a
+            // hardcoded year and a 3-digit random suffix, which collided with
+            // the case_id primary key roughly one time in a thousand.
+            caseId: `CASE-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
             title: newCaseData.title,
             description: newCaseData.description,
             status: CaseStatus.OPEN,

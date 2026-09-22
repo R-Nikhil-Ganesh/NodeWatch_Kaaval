@@ -55,6 +55,32 @@ export const AuditLogsPage = () => {
     });
   }, [logs, query, actionFilter]);
 
+  // Builds a real CSV from the rows already loaded from the audit service —
+  // this used to be a bare alert() claiming the export "will be wired up".
+  const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+  const handleExportCsv = () => {
+    const header = ['Timestamp', 'Actor', 'Designation', 'Action', 'Target', 'IP Address', 'Device'];
+    const rows = visible.map((l) => [
+      formatDateTime(l.timestamp),
+      l.actorName,
+      l.actorDesignation,
+      ACTION_LABEL[l.action] || l.action,
+      l.targetLabel,
+      l.ipAddress,
+      l.device,
+    ]);
+    const csv = '﻿' + [header, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${courtCase.caseId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -63,8 +89,9 @@ export const AuditLogsPage = () => {
           <p className="text-sm text-ink-500 mt-1">Every access to this case — who viewed, uploaded or downloaded what, and when.</p>
         </div>
         <button
-          onClick={() => alert('This is a UI-only preview build — CSV export will be wired up once the audit service is connected.')}
-          className="flex items-center gap-2 px-4 py-2 rounded-sm bg-white border border-line-300 text-navy-900 text-sm font-medium hover:bg-paper-100 transition-colors"
+          onClick={handleExportCsv}
+          disabled={visible.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-sm bg-white border border-line-300 text-navy-900 text-sm font-medium hover:bg-paper-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download size={14} /> Export CSV
         </button>

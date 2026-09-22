@@ -1,47 +1,42 @@
-import { AuditEvent, IOAlert, MOCK_AUDIT_EVENTS, MOCK_ALERTS } from './mockData';
+import { apiGet, apiPatch } from './apiClient';
+import type { AuditEvent, IOAlert } from './types';
+
+export type { AuditEvent, IOAlert };
 
 export interface AuditFilters {
-  user?: string;
-  action?: string;
-  actionType?: string;
   query?: string;
   caseId?: string;
   evidenceId?: string;
+  actionType?: string;
   dateFrom?: string;
   dateTo?: string;
+  limit?: number;
 }
 
-export const getAuditEvents = (filters?: AuditFilters): AuditEvent[] => {
-  let events = [...MOCK_AUDIT_EVENTS].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
-  if (!filters) return events;
-  if (filters.query) {
-    const q = filters.query.toLowerCase();
-    events = events.filter(e =>
-      e.action.toLowerCase().includes(q) ||
-      e.user.toLowerCase().includes(q) ||
-      (e.txId && e.txId.toLowerCase().includes(q)) ||
-      (e.caseId && e.caseId.toLowerCase().includes(q))
-    );
-  }
-  if (filters.user) events = events.filter(e => e.user.toLowerCase().includes(filters.user!.toLowerCase()));
-  if (filters.action) events = events.filter(e => e.action.toLowerCase().includes(filters.action!.toLowerCase()));
-  if (filters.action || filters.actionType) {
-    const act = (filters.action || filters.actionType)!.toLowerCase();
-    events = events.filter(e => e.action.toLowerCase().includes(act));
-  }
-  if (filters.caseId) events = events.filter(e => e.caseId === filters.caseId);
-  if (filters.evidenceId) events = events.filter(e => e.evidenceId === filters.evidenceId);
-  if (filters.dateFrom) events = events.filter(e => new Date(e.timestamp) >= new Date(filters.dateFrom!));
-  if (filters.dateTo) events = events.filter(e => new Date(e.timestamp) <= new Date(filters.dateTo!));
-  return events;
-};
+export const getAuditEvents = (filters: AuditFilters = {}): Promise<AuditEvent[]> =>
+  apiGet<AuditEvent[]>('/audit', {
+    query: filters.query,
+    caseId: filters.caseId,
+    evidenceId: filters.evidenceId,
+    actionType: filters.actionType,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    limit: filters.limit,
+  });
 
-export const getAlerts = (): IOAlert[] => MOCK_ALERTS;
+export const getAlerts = (): Promise<IOAlert[]> => apiGet<IOAlert[]>('/alerts');
 
-export const getAlertsBySeverity = (severity: 'critical' | 'warning' | 'info'): IOAlert[] =>
-  MOCK_ALERTS.filter(a => a.severity === severity);
+export const getAlertsBySeverity = (
+  severity: 'critical' | 'warning' | 'info'
+): Promise<IOAlert[]> => apiGet<IOAlert[]>('/alerts', { severity });
 
-export const getOpenAlertsCount = (): number =>
-  MOCK_ALERTS.filter(a => a.status === 'Open').length;
+export const getOpenAlertsCount = (): Promise<number> =>
+  apiGet<IOAlert[]>('/alerts', { status: 'Open' }).then((rows) => rows.length);
+
+/** Persists the acknowledgement — this used to live only in React state. */
+export const updateAlertStatus = (
+  alertId: string,
+  status: 'Open' | 'Acknowledged' | 'Resolved',
+  actor?: { actorId?: string; actorRole?: string }
+): Promise<IOAlert> =>
+  apiPatch<IOAlert>(`/alerts/${encodeURIComponent(alertId)}`, { status, ...actor });

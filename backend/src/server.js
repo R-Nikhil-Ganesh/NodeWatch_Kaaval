@@ -22,6 +22,7 @@ import webSection63Routes from './routes/web/section63Routes.js';
 import webForensicsRoutes from './routes/web/forensicsRoutes.js';
 import webDocumentRoutes from './routes/web/documentRoutes.js';
 import webAuditRoutes from './routes/web/auditRoutes.js';
+import investigationRoutes from './routes/web/investigationRoutes.js';
 
 // Legal Route Imports
 import legalCaseRoutes from './routes/legal/caseRoutes.js';
@@ -76,6 +77,9 @@ app.use('/api/web/evidence', webSection63Routes);
 app.use('/api/web/forensics', webForensicsRoutes);
 app.use('/api/web/documents', webDocumentRoutes);
 app.use('/api/web/audit/logs', webAuditRoutes);
+// Investigating-officer domain: case triage, evidence tracking, forensic
+// records, chain-of-custody timeline and alerts.
+app.use('/api/web/investigation', investigationRoutes);
 
 // ---------------------------------------------------------------------------
 // 3. LEGAL DOMAIN: /api/legal/* (Court Management System frontend)
@@ -102,6 +106,7 @@ app.use('/api/evidence', webSection63Routes);
 app.use('/api/documents', webDocumentRoutes);
 app.use('/api/forensics', webForensicsRoutes);
 app.use('/api/logs', webAuditRoutes);
+app.use('/api/investigation', investigationRoutes);
 app.use('/cases', mobileCaseRoutes);
 app.use('/', mobileEvidenceRoutes);
 app.use('/api/sync', mobileSyncRoutes);

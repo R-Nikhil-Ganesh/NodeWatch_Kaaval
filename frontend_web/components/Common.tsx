@@ -120,6 +120,8 @@ export const CaseStatusBadge = ({ status }: { status: CaseStatus }) => {
     const map: Record<CaseStatus, 'green' | 'blue' | 'yellow' | 'gray' | 'red'> = {
         [CaseStatus.OPEN]: 'blue',
         [CaseStatus.UNDER_INVESTIGATION]: 'yellow',
+        [CaseStatus.AWAITING_FORENSICS]: 'yellow',
+        [CaseStatus.CHARGE_SHEET_PREPARATION]: 'blue',
         [CaseStatus.SUBMITTED_TO_COURT]: 'green',
         [CaseStatus.CLOSED]: 'gray',
         [CaseStatus.FROZEN]: 'red'

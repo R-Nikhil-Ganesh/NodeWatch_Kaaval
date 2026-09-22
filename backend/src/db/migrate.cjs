@@ -27,6 +27,11 @@ async function main() {
     const prioritySql = fs.readFileSync(path.join(__dirname, 'priority_extension.sql'), 'utf8');
     await client.query(prioritySql);
     console.log('Case priority extension applied.');
+
+    console.log('Applying investigation domain extension...');
+    const investigationSql = fs.readFileSync(path.join(__dirname, 'investigation_extension.sql'), 'utf8');
+    await client.query(investigationSql);
+    console.log('Investigation domain extension applied.');
   } finally {
     await client.end();
   }

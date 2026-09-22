@@ -17,6 +17,7 @@ import {
   Scale,
   History,
   ShieldCheck,
+  ShieldAlert,
   Check
 } from 'lucide-react';
 import { UserRole } from '../types';
@@ -148,6 +149,12 @@ export const Layout = ({
           label: 'Immutable Audit Ledger',
           desc: 'Hyperledger Fabric peer transactions & blocks',
           icon: History
+        },
+        {
+          id: 'alerts',
+          label: 'Investigative Alerts',
+          desc: 'Integrity, custody and forensic exceptions',
+          icon: ShieldAlert
         },
         {
           id: 'logs',

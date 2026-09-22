@@ -4,18 +4,30 @@ import { AppLayout } from '../components/layout/AppLayout';
 import { Avatar, Button, Card, DescriptionRow, Input, SectionHeading } from '../components/ui/Primitives';
 import { useAuth } from '../context/AuthContext';
 import { initials } from '../utils/format';
+import { updateProfileRequest } from '../services/api';
 
 export const ProfilePage = () => {
   const { user } = useAuth();
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!user) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProfileRequest(user.id, { phone });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      setError(err?.message || 'Could not save your changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -50,14 +62,15 @@ export const ProfilePage = () => {
             <Input label="Registered Email" value={user.email} disabled />
             <Input label="Phone Number" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <div className="sm:col-span-2 flex items-center gap-3 pt-1">
-              <Button type="submit" variant="primary">
-                <Phone size={14} /> Save Contact Details
+              <Button type="submit" variant="primary" disabled={saving}>
+                <Phone size={14} /> {saving ? 'Saving…' : 'Save Contact Details'}
               </Button>
               {saved && (
                 <span className="flex items-center gap-1.5 text-sm text-ashoka-700">
                   <CheckCircle2 size={15} /> Saved
                 </span>
               )}
+              {error && <span className="text-sm text-red-700">{error}</span>}
             </div>
           </form>
         </Card>

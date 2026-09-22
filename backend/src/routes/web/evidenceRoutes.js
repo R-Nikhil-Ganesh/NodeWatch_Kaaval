@@ -1,10 +1,15 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 import { query, getClient } from '../../db/index.js';
 import { storageService } from '../../services/storageService.js';
 import { auditService } from '../../services/auditService.js';
 import { hashingService } from '../../services/hashingService.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+
+const VALID_EVIDENCE_TYPES = new Set(['IMAGE', 'VIDEO', 'AUDIO', 'PDF', 'WORD', 'PHYSICAL', 'DISK_IMAGE']);
 
 router.get('/', async (req, res) => {
   try {
@@ -221,6 +226,161 @@ router.post('/', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Real file upload — actually persists the evidence bytes to MinIO.
+//
+// The JSON POST '/' above trusts a client-supplied `fileUrl` string and never
+// touches storage, which is how the web upload flows ended up writing
+// browser-only `blob:` URLs (or nothing) instead of a durable file. This
+// endpoint computes the hash server-side from the real bytes and uploads them,
+// mirroring the pattern already used by the mobile upload route.
+// ---------------------------------------------------------------------------
+router.post('/upload', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'liftingVideo', maxCount: 1 }]), async (req, res) => {
+  try {
+    const file = req.files?.file?.[0];
+    if (!file) return res.status(400).json({ message: 'A file is required' });
+
+    const {
+      caseId, name, type, location, notes, classification, riskLevel,
+      sourceHash, linkedEvidenceIds, timestamp, actorId, actorRole, visibility,
+    } = req.body || {};
+    const parsedVisibility = visibility ? JSON.parse(visibility) : {};
+
+    if (!caseId) return res.status(400).json({ message: 'caseId is required' });
+    const { rows: caseRows } = await query(`SELECT case_id FROM cases WHERE case_id = $1 AND is_deleted = FALSE`, [caseId]);
+    if (!caseRows.length) return res.status(404).json({ message: 'Case not found' });
+
+    const resolvedType = (type || 'IMAGE').toUpperCase();
+    if (!VALID_EVIDENCE_TYPES.has(resolvedType)) {
+      return res.status(400).json({ message: `Invalid evidence type "${type}" — must be one of ${[...VALID_EVIDENCE_TYPES].join(', ')}` });
+    }
+
+    const evidenceId = `EV-${Date.now().toString(36).toUpperCase()}`;
+    const ext = path.extname(file.originalname) || '';
+    const objectKey = `cases/${caseId}/${evidenceId}${ext}`;
+    const serverFileHash = hashingService.computeBufferHash(file.buffer);
+
+    let liftingVideoUrl = null;
+    let liftingVideoHash = null;
+    const liftingVideoFile = req.files?.liftingVideo?.[0];
+    if (liftingVideoFile) {
+      const videoExt = path.extname(liftingVideoFile.originalname) || '.mp4';
+      const videoKey = `cases/${caseId}/${evidenceId}_lifting${videoExt}`;
+      await storageService.uploadFile({ key: videoKey, buffer: liftingVideoFile.buffer, mimeType: liftingVideoFile.mimetype });
+      liftingVideoUrl = `minio://${videoKey}`;
+      liftingVideoHash = hashingService.computeBufferHash(liftingVideoFile.buffer);
+    }
+
+    await storageService.uploadFile({
+      key: objectKey,
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      metadata: { caseId, evidenceId },
+    });
+
+    const resolvedClass = (sourceHash && liftingVideoFile) ? 'PRIMARY' : (classification || 'SECONDARY');
+    const resolvedRisk = (riskLevel || 'LOW').toUpperCase();
+    const computedMetaHash = hashingService.hashMetadata({
+      caseId, evidenceId, name: name || file.originalname, type: resolvedType,
+      location: location || 'Crime Scene', submittedBy: actorId || 'Unknown',
+      fileHash: serverFileHash, sourceHash: sourceHash || serverFileHash,
+    });
+
+    const dbClient = await getClient();
+    let savedRow;
+    try {
+      await dbClient.query('BEGIN');
+
+      let custodianName = null;
+      if (actorId) {
+        const uRes = await dbClient.query('SELECT name FROM users WHERE user_id = $1', [actorId]);
+        if (uRes.rows.length) custodianName = uRes.rows[0].name;
+      }
+
+      const { rows } = await dbClient.query(
+        `INSERT INTO evidence
+           (evidence_id, case_id, name, file_name, type, mime_type, file_size_bytes, file_url,
+            file_hash, metadata_hash, source_hash, lifting_video_url, lifting_video_hash,
+            classification, risk_level, integrity_status, notes,
+            uploaded_by, current_custodian_id, current_custodian_name, owner_msp,
+            collected_location, collected_timestamp, linked_evidence_ids,
+            on_chain_status, version, is_deleted, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'UNVERIFIED',$16,
+                 $17,$17,$18,'PoliceMSP',$19,$20,$21,'BLOCKCHAIN_PENDING',1,FALSE,NOW(),NOW())
+         RETURNING *`,
+        [
+          evidenceId, caseId, name || file.originalname, file.originalname, resolvedType,
+          file.mimetype, file.size, `minio://${objectKey}`,
+          serverFileHash, computedMetaHash, sourceHash || serverFileHash, liftingVideoUrl, liftingVideoHash,
+          resolvedClass, resolvedRisk, notes || null,
+          actorId || null, custodianName,
+          location || 'Crime Scene', timestamp ? new Date(timestamp) : new Date(),
+          JSON.stringify(linkedEvidenceIds ? JSON.parse(linkedEvidenceIds) : []),
+        ]
+      );
+      savedRow = rows[0];
+
+      await dbClient.query(
+        `INSERT INTO evidence_visibility
+           (evidence_id, is_restricted, allowed_roles, allowed_designations, allowed_user_ids)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (evidence_id) DO UPDATE SET
+           is_restricted = EXCLUDED.is_restricted,
+           allowed_roles = EXCLUDED.allowed_roles,
+           allowed_designations = EXCLUDED.allowed_designations,
+           allowed_user_ids = EXCLUDED.allowed_user_ids,
+           updated_at = NOW()`,
+        [
+          evidenceId,
+          parsedVisibility.isRestricted || false,
+          JSON.stringify(parsedVisibility.allowedRoles || []),
+          JSON.stringify(parsedVisibility.allowedDesignations || []),
+          JSON.stringify(parsedVisibility.allowedUserIds || []),
+        ]
+      );
+
+      await dbClient.query(
+        `INSERT INTO blockchain_outbox (event_type, entity_id, case_id, payload, status)
+         VALUES ($1,$2,$3,$4,'PENDING')`,
+        [
+          'CREATE_EVIDENCE', evidenceId, caseId,
+          JSON.stringify({
+            evidenceId, caseId, sourceHash: sourceHash || serverFileHash, serverHash: serverFileHash,
+            metadataHash: computedMetaHash, riskLevel: resolvedRisk,
+            actorId: actorId || 'SYSTEM', actorRole: actorRole || 'POLICE',
+          }),
+        ]
+      );
+
+      await dbClient.query('COMMIT');
+    } catch (e) {
+      await dbClient.query('ROLLBACK');
+      await storageService.deleteFile(objectKey).catch(() => {});
+      if (liftingVideoUrl) await storageService.deleteFile(liftingVideoUrl.replace('minio://', '')).catch(() => {});
+      throw e;
+    } finally {
+      dbClient.release();
+    }
+
+    await auditService.log({
+      caseId, evidenceId, userId: actorId, userRole: actorRole,
+      action: 'UPLOAD', source: 'WEB',
+      details: { fileName: file.originalname, fileType: resolvedType, hash: serverFileHash, location, metadataHash: computedMetaHash },
+    });
+
+    const presignedUrl = await storageService.getPresignedUrl(objectKey).catch(() => null);
+    res.status(201).json({
+      ...savedRow,
+      evidenceId: savedRow.evidence_id,
+      caseId: savedRow.case_id,
+      uri: presignedUrl || `minio://${objectKey}`,
+    });
+  } catch (err) {
+    console.error('[WebEvidenceUpload Error]', err);
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
 

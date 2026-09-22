@@ -31,7 +31,14 @@ export default function CreateCaseScreen({ navigation }: { navigation: CreateCas
 
     try {
       await addCase(newCase);
-      Alert.alert('Success', 'Case created and registered on blockchain!');
+      // The ledger anchor is written asynchronously by the backend outbox
+      // worker, so the case is only saved-and-queued at this point. Claiming
+      // it was "registered on blockchain" was untrue whenever the device was
+      // offline, where the case reaches local storage only.
+      Alert.alert(
+        'Case Created',
+        'The case has been saved and queued for ledger anchoring. It will sync automatically when a connection is available.'
+      );
       navigation.goBack();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to create case');

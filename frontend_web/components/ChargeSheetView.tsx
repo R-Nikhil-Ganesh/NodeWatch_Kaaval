@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store';
 import { Card, Button, Input, Badge } from './Common';
 import { LegalDocument, UserRole, Evidence, IntegrityStatus, CaseStatus } from '../types';
@@ -20,16 +20,11 @@ import {
   CheckSquare,
   File as FileIcon
 } from 'lucide-react';
-import { MOCK_CASES } from '../services/mockData';
-
 export const ChargeSheetView = () => {
   const { documents, cases, evidence, currentUser, addDocument, updateCaseStatus } = useStore();
 
   // Active view tab: 'checklist' (Preparation) | 'archive' (Filed Charge Sheets)
   const [activeTab, setActiveTab] = useState<'checklist' | 'archive'>('checklist');
-
-  // Selected Case for Preparation Checklist
-  const [selectedCaseId, setSelectedCaseId] = useState<string>('FIR 142/2026');
 
   // Modal States
   const [chargeSheetModalOpen, setChargeSheetModalOpen] = useState(false);
@@ -37,31 +32,152 @@ export const ChargeSheetView = () => {
   const [magistratePacketOpen, setMagistratePacketOpen] = useState(false);
 
   // Form State for New Charge Sheet Filing
-  const [chargeData, setChargeData] = useState({ accused: 'Ramesh Babu & Unknown Accomplices', charges: 'IPC 302, IPC 201, IPC 120B', details: 'Homicide committed in furtherance of common intention. 15 of 17 forensic items verified on immutable ledger.' });
-  const [chargeEvidenceIds, setChargeEvidenceIds] = useState<string[]>(['EV-0142', 'EV-0143', 'EV-0145']);
+  const [chargeData, setChargeData] = useState({ accused: '', charges: '', details: '' });
+  const [chargeEvidenceIds, setChargeEvidenceIds] = useState<string[]>([]);
 
   const chargeSheets = documents.filter(d => d.type === 'CHARGE_SHEET');
-  const activeCases = cases.filter(c => c.status === CaseStatus.UNDER_INVESTIGATION);
 
-  // Selected case details
-  const activeCase = useMemo(() => {
-    return (
-      MOCK_CASES.find(c => c.firNumber === selectedCaseId) ||
-      cases.find(c => c.caseId === selectedCaseId) ||
-      MOCK_CASES[0]
+  // Cases eligible for charge-sheet preparation. Filing is the act of sending
+  // a case to court, so anything not already there is a candidate.
+  const activeCases = useMemo(
+    () => cases.filter(c => c.status !== CaseStatus.SUBMITTED_TO_COURT && c.status !== CaseStatus.CLOSED),
+    [cases]
+  );
+
+  // Selected case — defaults to the first real case rather than a fixed FIR.
+  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  useEffect(() => {
+    if (!selectedCaseId && activeCases.length) setSelectedCaseId(activeCases[0].caseId);
+  }, [activeCases, selectedCaseId]);
+
+  // Clears any evidence picked for a previous case — otherwise switching the
+  // target FIR after selecting exhibits could silently attach evidence from
+  // the wrong case to the charge sheet.
+  useEffect(() => {
+    setChargeEvidenceIds([]);
+  }, [selectedCaseId]);
+
+  const activeCase = useMemo(
+    () => cases.find(c => c.caseId === selectedCaseId),
+    [cases, selectedCaseId]
+  );
+
+  const caseEvidence = useMemo(
+    () => evidence.filter(e => e.caseId === selectedCaseId),
+    [evidence, selectedCaseId]
+  );
+
+  const verifiedEvidenceForCase = useMemo(
+    () => caseEvidence.filter(e => e.integrityStatus === IntegrityStatus.VERIFIED),
+    [caseEvidence]
+  );
+
+  // Evidentiary readiness is derived from the case's own exhibits, so the
+  // score reflects the record rather than a fixed figure.
+  const readiness = useMemo(() => {
+    const total = caseEvidence.length;
+    const verified = verifiedEvidenceForCase.length;
+    return {
+      total,
+      verified,
+      outstanding: total - verified,
+      percent: total > 0 ? Math.round((verified / total) * 100) : 0,
+      pendingItems: caseEvidence.filter(e => e.integrityStatus !== IntegrityStatus.VERIFIED),
+    };
+  }, [caseEvidence, verifiedEvidenceForCase]);
+
+  const caseDocuments = useMemo(
+    () => documents.filter(d => d.caseId === selectedCaseId),
+    [documents, selectedCaseId]
+  );
+
+  // Statutory Section 173 CrPC checklist, derived from the case's own
+  // records rather than a fixed "all satisfied" list with fabricated ledger
+  // anchor codes — those codes didn't correspond to any real blockchain
+  // event, and the "satisfied" status never reflected the actual case.
+  const checklist = useMemo(() => {
+    const firDoc = caseDocuments.find(d => d.type === 'FIR');
+    const compromisedCount = caseEvidence.filter(e => e.integrityStatus === IntegrityStatus.COMPROMISED).length;
+    const secondaryUncertified = caseEvidence.filter(
+      e => e.classification === 'SECONDARY' && !e.section63Certificate
     );
-  }, [selectedCaseId, cases]);
+    const certifiedEvidence = caseEvidence.find(e => e.section63Certificate);
+    const chargeSheetDoc = caseDocuments.find(d => d.type === 'CHARGE_SHEET');
 
-  // Case Evidence items
-  const caseEvidence = useMemo(() => {
-    return evidence.filter(e => e.caseId === selectedCaseId || e.caseId === activeCase?.firNumber);
-    const caseRef = (activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId;
-    return evidence.filter(e => e.caseId === selectedCaseId || e.caseId === caseRef);
-  }, [evidence, selectedCaseId, activeCase]);
+    return [
+      {
+        id: 'item-1',
+        title: '1. First Information Report (FIR) & Certified Extracts',
+        desc: firDoc
+          ? `FIR on file: "${firDoc.title}", filed ${new Date(firDoc.timestamp).toLocaleDateString('en-IN')}.`
+          : 'No FIR document has been recorded for this case yet.',
+        status: firDoc ? 'satisfied' as const : 'warning' as const,
+        anchor: null,
+      },
+      {
+        id: 'item-2',
+        title: '2. Seizure Memo & Comprehensive Evidence Registry',
+        desc: caseEvidence.length > 0
+          ? `${caseEvidence.length} item${caseEvidence.length === 1 ? '' : 's'} sealed and logged into the evidence vault.`
+          : 'No evidence items have been registered for this case yet.',
+        status: caseEvidence.length > 0 ? 'satisfied' as const : 'warning' as const,
+        anchor: null,
+      },
+      {
+        id: 'item-3',
+        title: '3. Cryptographic Chain of Custody Attestation',
+        desc: compromisedCount > 0
+          ? `${compromisedCount} exhibit${compromisedCount === 1 ? '' : 's'} flagged COMPROMISED — custody chain is not intact.`
+          : caseEvidence.length > 0
+            ? 'No integrity exceptions recorded across the custodial timeline.'
+            : 'No exhibits to attest — register evidence first.',
+        status: compromisedCount === 0 && caseEvidence.length > 0 ? 'satisfied' as const : 'warning' as const,
+        anchor: null,
+      },
+      {
+        id: 'item-4',
+        title: '4. Witness Statements under Section 161 CrPC',
+        desc: 'Witness statement tracking is not yet available in this portal — verify against the physical case file before filing.',
+        status: 'warning' as const,
+        anchor: null,
+      },
+      {
+        id: 'item-5',
+        title: '5. Forensic Science Laboratory (FSL) Reports',
+        desc: readiness.outstanding === 0
+          ? `All ${readiness.total} laboratory reports received and verified on the ledger.`
+          : `${readiness.verified} of ${readiness.total} reports verified. ${readiness.outstanding} pending${
+              readiness.pendingItems.length
+                ? ` (${readiness.pendingItems.slice(0, 3).map(e => e.evidenceId).join(', ')})`
+                : ''
+            }.`,
+        status: readiness.outstanding === 0 && readiness.total > 0 ? 'satisfied' as const : 'warning' as const,
+        anchor: null,
+      },
+      {
+        id: 'item-6',
+        title: '6. Section 65B IEA / 63 BSA Electronic Evidence Certificate',
+        desc: secondaryUncertified.length === 0
+          ? 'All secondary evidence items carry a Section 63 certificate.'
+          : `${secondaryUncertified.length} secondary item${secondaryUncertified.length === 1 ? '' : 's'} missing a Section 63 certificate (${secondaryUncertified.slice(0, 3).map(e => e.evidenceId).join(', ')}).`,
+        status: secondaryUncertified.length === 0 ? 'satisfied' as const : 'warning' as const,
+        anchor: certifiedEvidence?.blockchainTxId ? `${certifiedEvidence.blockchainTxId} · Ledger Hash Anchored` : null,
+      },
+      {
+        id: 'item-7',
+        title: '7. Final Investigative Report & Memo of Evidence',
+        desc: chargeSheetDoc
+          ? `Charge sheet already filed: "${chargeSheetDoc.title}".`
+          : 'Charge sheet not yet filed for this case.',
+        status: chargeSheetDoc ? 'satisfied' as const : 'warning' as const,
+        anchor: null,
+      },
+    ];
+  }, [caseDocuments, caseEvidence, readiness]);
 
-  const verifiedEvidenceForCase = useMemo(() => {
-    return caseEvidence.filter(e => e.integrityStatus === IntegrityStatus.VERIFIED);
-  }, [caseEvidence]);
+  const caseLabel = activeCase
+    ? `FIR ${(activeCase as any).firNumber || activeCase.caseId}`
+    : selectedCaseId || '—';
 
   const handleToggleChargeEvidence = (id: string) => {
     setChargeEvidenceIds(prev =>
@@ -162,10 +278,12 @@ export const ChargeSheetView = () => {
                   onChange={e => setSelectedCaseId(e.target.value)}
                   className="px-3 py-1.5 text-xs font-semibold bg-paper-50 border border-line-300 rounded text-navy-900 focus:outline-none focus:ring-1 focus:ring-navy-500"
                 >
-                  <option value="FIR 142/2026">FIR 142/2026 — State vs. Unknown / Ramesh Babu (Central PS)</option>
-                  <option value="FIR 201/2026">FIR 201/2026 — State vs. Multiple Accused (HSR Layout PS)</option>
-                  <option value="FIR 089/2026">FIR 089/2026 — State vs. Ramesh Babu (Koramangala PS)</option>
-                  <option value="FIR 067/2026">FIR 067/2026 — State vs. Anand Varma (Shivajinagar PS)</option>
+                  {activeCases.length === 0 && <option value="">No cases available</option>}
+                  {activeCases.map(c => (
+                    <option key={c.caseId} value={c.caseId}>
+                      {(c as any).firNumber ? `FIR ${(c as any).firNumber}` : c.caseId} — {c.title}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -175,7 +293,7 @@ export const ChargeSheetView = () => {
                   className="px-3 py-1.5 text-xs font-semibold rounded bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors inline-flex items-center gap-1.5"
                 >
                   <AlertTriangle size={13} className="text-amber-600" />
-                  View Missing Documents (2)
+                  View Missing Documents ({readiness.outstanding})
                 </button>
                 <button
                   onClick={() => setMagistratePacketOpen(true)}
@@ -193,7 +311,7 @@ export const ChargeSheetView = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-navy-900">Evidentiary Readiness Score:</span>
                   <span className="text-xs font-mono font-bold text-status-resolved bg-status-resolvedBg px-2 py-0.5 rounded border border-status-resolved/20">
-                    15 of 17 (88%) Prerequisites Satisfied
+                    {readiness.verified} of {readiness.total} ({readiness.percent}%) Prerequisites Satisfied
                   </span>
                 </div>
                 <p className="text-xs text-ink-500">
@@ -205,10 +323,10 @@ export const ChargeSheetView = () => {
               <div className="w-full md:w-64 space-y-1">
                 <div className="flex justify-between text-[11px] font-semibold text-ink-600">
                   <span>Compilation Progress</span>
-                  <span>88%</span>
+                  <span>{readiness.percent}%</span>
                 </div>
                 <div className="w-full h-2.5 bg-paper-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-navy-900 rounded-full" style={{ width: '88%' }} />
+                  <div className="h-full bg-navy-900 rounded-full" style={{ width: `${readiness.percent}%` }} />
                 </div>
               </div>
             </div>
@@ -226,63 +344,12 @@ export const ChargeSheetView = () => {
                 </p>
               </div>
               <span className="text-xs font-mono font-semibold text-ink-500">
-                Case: {activeCase?.firNumber || selectedCaseId}
-                Case: {(activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId}
+                Case: {caseLabel}
               </span>
             </div>
 
             <div className="divide-y divide-line-200">
-              {[
-                {
-                  id: 'item-1',
-                  title: '1. First Information Report (FIR) & Certified Extracts',
-                  desc: 'FIR registered under IPC 302, 201. Magistrate copy dispatched within 24 hours of registration.',
-                  status: 'satisfied',
-                  anchor: 'TX-8F21A001 · Block #1840'
-                },
-                {
-                  id: 'item-2',
-                  title: '2. Seizure Memo & Comprehensive Evidence Registry',
-                  desc: 'All 17 physical and digital items sealed with tamper-evident serials and logged into evidence vault.',
-                  status: 'satisfied',
-                  anchor: 'TX-8F21A002 · Block #1841'
-                },
-                {
-                  id: 'item-3',
-                  title: '3. Cryptographic Chain of Custody Attestation',
-                  desc: 'Complete unbroken custodial timeline with verified transfer handoffs and digital signatures.',
-                  status: 'satisfied',
-                  anchor: 'TX-8F21A006 · Block #1845'
-                },
-                {
-                  id: 'item-4',
-                  title: '4. Witness Statements under Section 161 CrPC',
-                  desc: '4 eyewitness accounts recorded and notarized. Statements indexed and cross-referenced with scene photos.',
-                  status: 'satisfied',
-                  anchor: 'TX-8F21A010 · Block #1849'
-                },
-                {
-                  id: 'item-5',
-                  title: '5. Forensic Science Laboratory (FSL) Reports',
-                  desc: '15 of 17 chemical/digital reports received from FSL Bengaluru. 2 reports pending (EV-0144 & EV-0147).',
-                  status: 'warning',
-                  anchor: 'Pending FSL-BLR-2026-4435'
-                },
-                {
-                  id: 'item-6',
-                  title: '6. Section 65B IEA / 63 BSA Electronic Evidence Certificate',
-                  desc: 'Cryptographic SHA-256 hash attestation certificate for Samsung Galaxy mobile (EV-0142) and ATM CCTV (EV-0143).',
-                  status: 'satisfied',
-                  anchor: 'TX-8F21A4B9 · Ledger Hash Anchored'
-                },
-                {
-                  id: 'item-7',
-                  title: '7. Final Investigative Report & Memo of Evidence',
-                  desc: 'Draft charge sheet prepared outlining motive, circumstantial sequence, and forensic corroboration.',
-                  status: 'satisfied',
-                  anchor: 'Draft Ready for Review'
-                }
-              ].map(item => (
+              {checklist.map(item => (
                 <div key={item.id} className="p-4 flex items-start justify-between gap-4 hover:bg-paper-50/50 transition-colors">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 shrink-0">
@@ -295,12 +362,14 @@ export const ChargeSheetView = () => {
                     <div>
                       <h4 className="text-sm font-semibold text-navy-900">{item.title}</h4>
                       <p className="text-xs text-ink-600 mt-0.5">{item.desc}</p>
-                      <div className="text-[11px] font-mono text-ink-400 mt-1 flex items-center gap-2">
-                        <span>Ledger Anchor:</span>
-                        <code className="text-navy-800 bg-paper-100 px-1.5 py-0.5 rounded border border-line-200">
-                          {item.anchor}
-                        </code>
-                      </div>
+                      {item.anchor && (
+                        <div className="text-[11px] font-mono text-ink-400 mt-1 flex items-center gap-2">
+                          <span>Ledger Anchor:</span>
+                          <code className="text-navy-800 bg-paper-100 px-1.5 py-0.5 rounded border border-line-200">
+                            {item.anchor}
+                          </code>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -402,10 +471,28 @@ export const ChargeSheetView = () => {
 
                     <div className="shrink-0 flex md:flex-col items-end gap-2">
                       <button
-                        onClick={() => alert(`Charge sheet record ${doc.docId} verified on Hyperledger Fabric ledger.`)}
+                        onClick={() => {
+                          // Reports the REAL, currently-stored integrity status
+                          // of every exhibit linked to this charge sheet,
+                          // rather than an unconditional "verified" claim.
+                          const linked = (doc.linkedEvidenceIds || [])
+                            .map(eid => evidence.find(e => e.evidenceId === eid))
+                            .filter((e): e is Evidence => !!e);
+                          if (linked.length === 0) {
+                            alert(`Charge sheet ${doc.docId} has no linked evidence to attest.`);
+                            return;
+                          }
+                          const compromised = linked.filter(e => e.integrityStatus === IntegrityStatus.COMPROMISED);
+                          const verified = linked.filter(e => e.integrityStatus === IntegrityStatus.VERIFIED);
+                          alert(
+                            compromised.length > 0
+                              ? `INTEGRITY WARNING: ${compromised.length} of ${linked.length} linked exhibit(s) are flagged COMPROMISED (${compromised.map(e => e.evidenceId).join(', ')}).`
+                              : `${verified.length} of ${linked.length} linked exhibit(s) are ledger-verified. ${linked.length - verified.length > 0 ? `${linked.length - verified.length} still pending verification.` : 'All exhibits verified.'}`
+                          );
+                        }}
                         className="px-3 py-1.5 text-xs font-semibold rounded bg-paper-100 hover:bg-paper-200 text-navy-900 border border-line-200 transition-colors"
                       >
-                        Verify Ledger Attestation
+                        Check Linked Evidence Integrity
                       </button>
                     </div>
                   </div>
@@ -435,40 +522,31 @@ export const ChargeSheetView = () => {
 
             <div className="p-6 space-y-4">
               <p className="text-xs text-ink-600">
-                The following 2 items are currently outstanding for <strong>{activeCase?.firNumber || selectedCaseId}</strong>. The public prosecutor requires all laboratory reports to be attached prior to court registry.
-                The following 2 items are currently outstanding for <strong>{(activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId}</strong>. The public prosecutor requires all laboratory reports to be attached prior to court registry.
+                The following {readiness.outstanding} item{readiness.outstanding === 1 ? ' is' : 's are'} currently outstanding for <strong>{caseLabel}</strong>. The public prosecutor requires all laboratory reports to be attached prior to court registry.
               </p>
 
               <div className="space-y-3">
-                <div className="p-3.5 rounded border border-amber-200 bg-amber-50/50 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
-                      EV-0144 (Fingerprint Lift)
-                    </span>
-                    <span className="text-[11px] font-semibold text-amber-800">Under Examination</span>
+                {readiness.pendingItems.length === 0 && (
+                  <div className="p-4 rounded border border-status-resolved/30 bg-status-resolvedBg/40 text-center">
+                    <p className="text-xs font-medium text-navy-900">
+                      All exhibits for this case are verified. No outstanding prerequisites.
+                    </p>
                   </div>
-                  <p className="text-xs font-medium text-navy-900">
-                    FSL Examination Requisition: FSL-BLR-2026-4435
-                  </p>
-                  <p className="text-xs text-ink-500">
-                    Automated Fingerprint Identification System (AFIS) matching in progress at FSL Bengaluru Lab 2. Expected completion: 2 days.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded border border-amber-200 bg-amber-50/50 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
-                      EV-0147 (Building CCTV Archive)
-                    </span>
-                    <span className="text-[11px] font-semibold text-amber-800">Pending Extraction</span>
+                )}
+                {readiness.pendingItems.map(item => (
+                  <div key={item.evidenceId} className="p-3.5 rounded border border-amber-200 bg-amber-50/50 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                        {item.evidenceId}{item.name ? ` (${item.name})` : ''}
+                      </span>
+                      <span className="text-[11px] font-semibold text-amber-800">{item.integrityStatus}</span>
+                    </div>
+                    <p className="text-xs font-medium text-navy-900">{item.fileName}</p>
+                    <p className="text-xs text-ink-500">
+                      {item.notes || 'Awaiting integrity verification before it can be attached to the charge sheet.'}
+                    </p>
                   </div>
-                  <p className="text-xs font-medium text-navy-900">
-                    Primary DVR Footage Copy & Section 65B Certificate
-                  </p>
-                  <p className="text-xs text-ink-500">
-                    Awaiting secondary witness certification from building management security officer before hashing.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
 
@@ -508,30 +586,29 @@ export const ChargeSheetView = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs py-1">
-                  <div><strong>FIR Number:</strong> {selectedCaseId}</div>
-                  <div><strong>Police Station:</strong> Central Police Station</div>
-                  <div><strong>Investigating Officer:</strong> {currentUser?.name || 'SI Arun Kumar'}</div>
-                  <div><strong>Date of Registration:</strong> 02-Sep-2026</div>
+                  <div><strong>FIR Number:</strong> {caseLabel}</div>
+                  <div><strong>Police Station:</strong> {activeCase?.policeStation || 'Not recorded'}</div>
+                  <div><strong>Investigating Officer:</strong> {activeCase?.currentCustodian || currentUser?.name || 'Unassigned'}</div>
+                  <div><strong>Date of Registration:</strong> {activeCase?.createdAt ? new Date(activeCase.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not recorded'}</div>
                 </div>
               </div>
 
               <div>
                 <h5 className="font-bold text-navy-900 uppercase tracking-wider mb-2">
-                  Attached Ledger-Anchored Exhibits:
+                  Attached Ledger-Anchored Exhibits ({verifiedEvidenceForCase.length}):
                 </h5>
                 <div className="space-y-1.5 font-mono text-[11px]">
-                  <div className="p-2 bg-white rounded border border-line-200 flex justify-between">
-                    <span>Exhibit A: Mobile Phone (EV-0142)</span>
-                    <span className="text-status-resolved font-bold">SHA-256 Verified · TX-8F21A4B9</span>
-                  </div>
-                  <div className="p-2 bg-white rounded border border-line-200 flex justify-between">
-                    <span>Exhibit B: CCTV Footage (EV-0143)</span>
-                    <span className="text-status-resolved font-bold">SHA-256 Verified · TX-8F21A4C2</span>
-                  </div>
-                  <div className="p-2 bg-white rounded border border-line-200 flex justify-between">
-                    <span>Exhibit C: Blood Sample Swab (EV-0145)</span>
-                    <span className="text-status-resolved font-bold">DNA Report Attached · TX-8F21D001</span>
-                  </div>
+                  {verifiedEvidenceForCase.length === 0 && (
+                    <p className="text-ink-400 italic">No verified exhibits available for this case.</p>
+                  )}
+                  {verifiedEvidenceForCase.map(ev => (
+                    <div key={ev.evidenceId} className="p-2 bg-white rounded border border-line-200 flex justify-between gap-2">
+                      <span className="truncate">{ev.name || ev.fileName} ({ev.evidenceId})</span>
+                      <span className="text-status-resolved font-bold shrink-0">
+                        SHA-256 Verified{ev.blockchainTxId ? ` · ${ev.blockchainTxId}` : ''}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -540,7 +617,7 @@ export const ChargeSheetView = () => {
               <Button variant="secondary" size="sm" onClick={() => setMagistratePacketOpen(false)}>
                 Close
               </Button>
-              <Button size="sm" onClick={() => { alert('Dossier packet generated and sent to printer.'); setMagistratePacketOpen(false); }}>
+              <Button size="sm" onClick={() => window.print()}>
                 <Printer size={14} /> Print Formal Docket
               </Button>
             </div>
@@ -563,9 +640,12 @@ export const ChargeSheetView = () => {
                     onChange={e => setSelectedCaseId(e.target.value)}
                     className="w-full px-3 py-2 border border-line-300 rounded bg-white text-xs font-semibold text-navy-900 focus:outline-none focus:border-navy-500"
                   >
-                    <option value="FIR 142/2026">FIR 142/2026: State vs. Unknown</option>
-                    <option value="FIR 201/2026">FIR 201/2026: State vs. Multiple Accused</option>
-                    <option value="FIR 089/2026">FIR 089/2026: State vs. Ramesh Babu</option>
+                    {activeCases.length === 0 && <option value="">No cases available</option>}
+                    {activeCases.map(c => (
+                      <option key={c.caseId} value={c.caseId}>
+                        {(c as any).firNumber ? `FIR ${(c as any).firNumber}` : c.caseId}: {c.title}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -612,12 +692,17 @@ export const ChargeSheetView = () => {
                 </p>
 
                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                  {['EV-0142', 'EV-0143', 'EV-0145'].map(eid => (
+                  {verifiedEvidenceForCase.length === 0 && (
+                    <p className="text-xs text-ink-400 italic py-2">
+                      No verified evidence is available for this case yet.
+                    </p>
+                  )}
+                  {verifiedEvidenceForCase.map(ev => (
                     <div
-                      key={eid}
-                      onClick={() => handleToggleChargeEvidence(eid)}
+                      key={ev.evidenceId}
+                      onClick={() => handleToggleChargeEvidence(ev.evidenceId)}
                       className={`p-2.5 rounded border cursor-pointer transition-colors ${
-                        chargeEvidenceIds.includes(eid)
+                        chargeEvidenceIds.includes(ev.evidenceId)
                           ? 'bg-navy-50 border-navy-400'
                           : 'bg-white border-line-200 hover:border-line-300'
                       }`}
@@ -625,17 +710,15 @@ export const ChargeSheetView = () => {
                       <div className="flex items-center gap-2">
                         <div
                           className={`w-4 h-4 rounded border flex items-center justify-center ${
-                            chargeEvidenceIds.includes(eid)
+                            chargeEvidenceIds.includes(ev.evidenceId)
                               ? 'bg-navy-900 border-navy-900 text-white'
                               : 'border-line-300'
                           }`}
                         >
-                          {chargeEvidenceIds.includes(eid) && <CheckSquare size={12} />}
+                          {chargeEvidenceIds.includes(ev.evidenceId) && <CheckSquare size={12} />}
                         </div>
-                        <span className="text-xs font-semibold text-navy-900 font-mono">{eid}</span>
-                        <span className="text-[11px] text-ink-500 truncate">
-                          {eid === 'EV-0142' ? 'Samsung Galaxy Device' : eid === 'EV-0143' ? 'ATM CCTV Footage' : 'Crime Scene Blood Swab'}
-                        </span>
+                        <span className="text-xs font-semibold text-navy-900 font-mono">{ev.evidenceId}</span>
+                        <span className="text-[11px] text-ink-500 truncate">{ev.name || ev.fileName}</span>
                       </div>
                     </div>
                   ))}

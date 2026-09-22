@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Phone, Film, Droplets, FileText, Eye, ChevronDown, X } from 'lucide-react';
 import { Card, Button, Table } from '../Common';
 import { searchEvidence, getEvidenceStats } from '../../services/evidenceService';
-import type { IOEvidence } from '../../services/types';
+import type { EvidenceStats } from '../../services/evidenceService';
+import type {
+  IOEvidence,
+  StorageStatus,
+  EvidenceIntegrityStatus,
+  ForensicExaminationStatus,
+} from '../../services/types';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,10 +111,38 @@ const StatCard: React.FC<{ label: string; value: number; color?: string }> = ({ 
 // Main component
 // ════════════════════════════════════════════════════════════════════════════
 
+// The real evidence categories present in the database. Keeping this list in
+// one place stops the dropdown drifting away from the data again.
+const EVIDENCE_TYPES = [
+  'Mobile Device',
+  'CCTV Footage',
+  'Fingerprint Lift',
+  'Blood Sample',
+  'Written Statement',
+  'Weapon',
+  'Physical Sample',
+  'Stolen Goods',
+  'Accused Clothing',
+  'Laptop Computer',
+  'Bank Documents',
+  'Corporate Server Log Archive',
+];
+
+const EMPTY_STATS: EvidenceStats = {
+  totalItems: 0,
+  total: 0,
+  atFSL: 0,
+  atFsl: 0,
+  inTransit: 0,
+  integrityExceptions: 0,
+  pendingForensics: 0,
+};
+
 const EvidencePage: React.FC<Props> = ({ onNavigate }) => {
   const [evidence, setEvidence] = useState<IOEvidence[]>([]);
-  const [stats, setStats] = useState({ total: 0, atFsl: 0, inTransit: 0, integrityExceptions: 0 });
+  const [stats, setStats] = useState<EvidenceStats>(EMPTY_STATS);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [typeFilter, setTypeFilter] = useState('all');
@@ -126,23 +160,44 @@ const EvidencePage: React.FC<Props> = ({ onNavigate }) => {
   ];
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const [ev, st] = await Promise.all([
+    let cancelled = false;
+    setLoading(true);
+
+    const timer = setTimeout(() => {
+      Promise.all([
+        // Single options object — the server does the filtering.
         searchEvidence({
           type: typeFilter !== 'all' ? typeFilter : undefined,
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          forensicStatus: forensicFilter !== 'all' ? forensicFilter : undefined,
-          integrityStatus: integrityFilter !== 'all' ? integrityFilter : undefined,
-          query: searchQuery || undefined,
+          status: statusFilter !== 'all' ? (statusFilter as StorageStatus) : undefined,
+          forensicStatus:
+            forensicFilter !== 'all' ? (forensicFilter as ForensicExaminationStatus) : undefined,
+          integrityStatus:
+            integrityFilter !== 'all' ? (integrityFilter as EvidenceIntegrityStatus) : undefined,
+          query: searchQuery.trim() || undefined,
         }),
         getEvidenceStats(),
-      ]);
-      setEvidence(ev);
-      setStats(st);
-      setLoading(false);
+      ])
+        .then(([ev, st]) => {
+          if (cancelled) return;
+          setEvidence(ev);
+          setStats(st);
+          setError(null);
+        })
+        .catch((err: any) => {
+          if (cancelled) return;
+          setEvidence([]);
+          setStats(EMPTY_STATS);
+          setError(err?.message || 'Unable to load evidence.');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, searchQuery.trim() ? 300 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
     };
-    load();
   }, [typeFilter, statusFilter, forensicFilter, integrityFilter, searchQuery]);
 
   const selectClass = "px-3 py-2 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500 transition-colors";
@@ -156,6 +211,13 @@ const EvidencePage: React.FC<Props> = ({ onNavigate }) => {
       </div>
 
       <div className="p-6 space-y-5">
+        {error && (
+          <div className="flex items-center gap-2 border border-status-urgent/20 bg-status-urgentBg text-status-urgent rounded-sm px-4 py-3">
+            <AlertTriangle size={16} className="shrink-0" />
+            <span className="text-sm font-medium">{error}</span>
+          </div>
+        )}
+
         {/* Stats Bar */}
         <div className="grid grid-cols-4 gap-4">
           <StatCard label="Total Items" value={stats.total} />
@@ -186,10 +248,9 @@ const EvidencePage: React.FC<Props> = ({ onNavigate }) => {
               <div className="relative">
                 <select className={selectClass} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
                   <option value="all">All Types</option>
-                  <option value="Mobile Device">Mobile Device</option>
-                  <option value="CCTV Footage">CCTV Footage</option>
-                  <option value="Biological Sample">Biological Sample</option>
-                  <option value="Document">Document</option>
+                  {EVIDENCE_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
               </div>
 
@@ -283,7 +344,14 @@ const EvidencePage: React.FC<Props> = ({ onNavigate }) => {
                       {ev.type}
                     </div>
                   </td>
-                  <td className="px-5 py-3 whitespace-nowrap text-xs font-medium text-navy-700">{ev.caseId}</td>
+                  <td className="px-5 py-3 whitespace-nowrap text-xs font-medium text-navy-700">
+                    <button
+                      onClick={() => onNavigate('case_detail', ev.caseId)}
+                      className="hover:text-navy-900 hover:underline"
+                    >
+                      {ev.caseFirNumber ?? ev.caseId}
+                    </button>
+                  </td>
                   <td className="px-5 py-3 max-w-[200px]">
                     <span className="text-xs text-ink-700" title={ev.description}>
                       {ev.description.length > 40 ? ev.description.slice(0, 40) + '…' : ev.description}

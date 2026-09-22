@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Briefcase,
   Package,
@@ -13,8 +13,11 @@ import {
 import { Card, Button, Badge, Table } from '../Common';
 import { useStore } from '../../store';
 import { getCases, getCaseStats } from '../../services/caseService';
+import type { CaseStats } from '../../services/caseService';
 import { getEvidenceStats } from '../../services/evidenceService';
+import type { EvidenceStats } from '../../services/evidenceService';
 import { getAlerts, getOpenAlertsCount } from '../../services/auditService';
+import type { IOCase, IOAlert } from '../../services/types';
 
 interface NavProps {
   onNavigate: (view: string, id?: string) => void;
@@ -32,16 +35,8 @@ const relativeTime = (iso: string): string => {
   return `${days} day${days !== 1 ? 's' : ''} ago`;
 };
 
-type CocStatus = 'Verified' | 'Pending' | 'Exception';
-type CaseStatus =
-  | 'Open'
-  | 'Under Investigation'
-  | 'Awaiting Forensics'
-  | 'Charge Sheet Preparation'
-  | 'Closed';
-
-const CocBadge = ({ status }: { status: CocStatus }) => {
-  const map: Record<CocStatus, 'green' | 'yellow' | 'red'> = {
+const CocBadge = ({ status }: { status: IOCase['cocStatus'] }) => {
+  const map: Record<IOCase['cocStatus'], 'green' | 'yellow' | 'red'> = {
     Verified: 'green',
     Pending: 'yellow',
     Exception: 'red',
@@ -49,13 +44,15 @@ const CocBadge = ({ status }: { status: CocStatus }) => {
   return <Badge color={map[status]}>{status}</Badge>;
 };
 
-const StatusBadge = ({ status }: { status: CaseStatus }) => {
-  const map: Record<CaseStatus, 'gray' | 'blue' | 'yellow' | 'green' | 'red'> = {
+const StatusBadge = ({ status }: { status: IOCase['status'] }) => {
+  const map: Record<IOCase['status'], 'gray' | 'blue' | 'yellow' | 'green' | 'red'> = {
     Open: 'gray',
     'Under Investigation': 'blue',
     'Awaiting Forensics': 'yellow',
     'Charge Sheet Preparation': 'green',
+    'Submitted to Court': 'blue',
     Closed: 'gray',
+    Frozen: 'red',
   };
   return <Badge color={map[status]}>{status}</Badge>;
 };
@@ -84,26 +81,84 @@ const KpiCard = ({ label, value, icon, borderColor, valueColor = 'text-navy-900'
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+const EMPTY_CASE_STATS: CaseStats = {
+  activeCases: 0,
+  underInvestigation: 0,
+  awaitingForensics: 0,
+  chargeSheetPrep: 0,
+  closed: 0,
+  total: 0,
+};
+
+const EMPTY_EVIDENCE_STATS: EvidenceStats = {
+  totalItems: 0,
+  total: 0,
+  atFSL: 0,
+  atFsl: 0,
+  inTransit: 0,
+  integrityExceptions: 0,
+  pendingForensics: 0,
+};
+
 export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
   const { currentUser } = useStore();
 
-  const caseStats = useMemo(() => getCaseStats(), []);
-  const evidenceStats = useMemo(() => getEvidenceStats(), []);
-  const openAlertCount = useMemo(() => getOpenAlertsCount(), []);
-  const activeCases = useMemo(
-    () => getCases().filter(c => c.status !== 'Closed').slice(0, 6),
-    [],
-  );
-  const topAlerts = useMemo(
-    () => getAlerts().filter(a => a.status === 'Open').slice(0, 4),
-    [],
-  );
+  const [caseStats, setCaseStats] = useState<CaseStats>(EMPTY_CASE_STATS);
+  const [evidenceStats, setEvidenceStats] = useState<EvidenceStats>(EMPTY_EVIDENCE_STATS);
+  const [openAlertCount, setOpenAlertCount] = useState(0);
+  const [activeCases, setActiveCases] = useState<IOCase[]>([]);
+  const [topAlerts, setTopAlerts] = useState<IOAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [cs, es, alertCount, cases, alerts] = await Promise.all([
+          getCaseStats(),
+          getEvidenceStats(),
+          getOpenAlertsCount(),
+          getCases(),
+          getAlerts(),
+        ]);
+        if (cancelled) return;
+        setCaseStats(cs);
+        setEvidenceStats(es);
+        setOpenAlertCount(alertCount);
+        setActiveCases(cases.filter(c => c.status !== 'Closed').slice(0, 6));
+        setTopAlerts(alerts.filter(a => a.status === 'Open').slice(0, 4));
+        setError(null);
+      } catch (err: any) {
+        if (cancelled) return;
+        setError(err?.message || 'Unable to load dashboard data.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const today = new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-ink-500">
+        <div className="w-6 h-6 border-2 border-navy-900 border-t-transparent rounded-full animate-spin mr-3" />
+        <span className="text-sm">Loading dashboard…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -122,6 +177,13 @@ export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
           Today: {today}
         </span>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 border border-status-urgent/20 bg-status-urgentBg text-status-urgent rounded-sm px-4 py-3">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="text-sm font-medium">{error}</span>
+        </div>
+      )}
 
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-5 gap-4">
@@ -189,12 +251,12 @@ export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
               ? Math.round((c.forensicProgress.completed / c.forensicProgress.total) * 100)
               : 0;
             return (
-              <tr key={c.firNumber} className="hover:bg-paper-50 transition-colors">
+              <tr key={c.caseId} className="hover:bg-paper-50 transition-colors">
                 {/* FIR No */}
                 <td className="px-5 py-3 whitespace-nowrap">
                   <button
                     className="font-mono text-sm text-navy-700 hover:text-navy-900 hover:underline font-semibold"
-                    onClick={() => onNavigate('case_detail', c.firNumber)}
+                    onClick={() => onNavigate('case_detail', c.caseId)}
                   >
                     {c.firNumber}
                   </button>
@@ -241,6 +303,13 @@ export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
               </tr>
             );
           })}
+          {activeCases.length === 0 && (
+            <tr>
+              <td colSpan={8} className="px-5 py-12 text-center text-sm text-ink-400">
+                No active cases are assigned to your station.
+              </td>
+            </tr>
+          )}
         </Table>
       </Card>
 
@@ -264,6 +333,11 @@ export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
         }
       >
         <div className="divide-y divide-line-200">
+          {topAlerts.length === 0 && (
+            <div className="px-5 py-10 text-center text-sm text-ink-400">
+              No open alerts.
+            </div>
+          )}
           {topAlerts.map(alert => {
             const isCritical = alert.severity === 'critical';
             const isWarning = alert.severity === 'warning';
@@ -296,7 +370,7 @@ export const PoliceDashboardHome: React.FC<NavProps> = ({ onNavigate }) => {
                     </span>
                   </div>
                   <p className="text-xs text-ink-500 mb-1">
-                    FIR {alert.caseId}
+                    {alert.caseFirNumber && <>FIR {alert.caseFirNumber}</>}
                     {alert.evidenceId && (
                       <> &nbsp;·&nbsp; Evidence {alert.evidenceId}</>
                     )}

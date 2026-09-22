@@ -3,7 +3,7 @@ import { AlertTriangle, Box, FileText, HardDrive, Loader2, MapPin, Mic, ShieldAl
 import { useCaseContext } from '../../components/layout/CaseLayout';
 import { Badge, Card, Drawer, EmptyState } from '../../components/ui/Primitives';
 import { CustodyTrail } from '../../components/case/CustodyTrail';
-import { fetchCaseFiles, fetchEvidence } from '../../services/api';
+import { fetchCaseFiles, fetchEvidence, verifyEvidenceRequest } from '../../services/api';
 import { useAsync } from '../../hooks/useAsync';
 import { EvidenceItem, IntegrityStatus } from '../../types';
 import { formatDate, formatDateTime, shortHash } from '../../utils/format';
@@ -47,17 +47,22 @@ export const EvidencePage = () => {
     setVerifyResult(null);
   };
 
-  const runVerification = (e: Extract<EvidenceItem, { kind: 'DIGITAL' }>) => {
+  // Asks the server to recompute and compare the hash. This previously ran a
+  // timer and then reported a result inferred from the already-stored status,
+  // so nothing was ever actually verified.
+  const runVerification = async (e: Extract<EvidenceItem, { kind: 'DIGITAL' }>) => {
     setVerifying(true);
     setVerifyResult(null);
-    setTimeout(() => {
-      setVerifying(false);
+    try {
+      const result = await verifyEvidenceRequest(e.evidenceId);
+      setVerifyResult(result.message);
+    } catch (err: any) {
       setVerifyResult(
-        e.integrityStatus === 'COMPROMISED'
-          ? 'MISMATCH — recomputed hash does not match the ledger record. Escalate immediately.'
-          : `Match confirmed — recomputed SHA-256 equals the hash anchored at ${e.ledgerBlockRef} on Hyperledger Fabric.`
+        err?.message || 'Verification could not be completed — the ledger service is unreachable.'
       );
-    }, 1400);
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (

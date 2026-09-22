@@ -28,6 +28,36 @@ export const CaseFilesPage = () => {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [selected, setSelected] = useState<CaseFile | null>(null);
 
+  // Case documents in this system are metadata records (no PDF/binary was
+  // ever attached — case_documents.file_url is unset for every row), so
+  // "download" exports the real stored record as text rather than either
+  // pretending to fetch a binary that was never uploaded or showing an
+  // alert that the feature "will be wired up".
+  const handleDownload = (file: CaseFile) => {
+    const lines = [
+      `Document: ${file.title}`,
+      `Type: ${file.type}`,
+      `Case: ${file.caseId}`,
+      `Uploaded By: ${file.uploadedBy} (${file.uploadedByRole})`,
+      `Uploaded On: ${formatDate(file.uploadedAt)}`,
+      file.relatedSections?.length ? `Related Provisions: ${file.relatedSections.join(', ')}` : null,
+      file.linkedEvidenceIds?.length ? `Linked Evidence: ${file.linkedEvidenceIds.join(', ')}` : null,
+      '',
+      'Summary:',
+      file.summary || '(no summary recorded)',
+    ].filter((l): l is string => l !== null);
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${file.fileId}-${file.title.replace(/[^a-z0-9]+/gi, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const types = Array.from(new Set((files || []).map((f) => f.type)));
   const visible = useMemo(
     () => (typeFilter === 'ALL' ? (files || []) : (files || []).filter((f) => f.type === typeFilter)),
@@ -129,7 +159,7 @@ export const CaseFilesPage = () => {
             )}
 
             <button
-              onClick={() => alert('This is a UI-only preview build — file download will be wired up once the document store is connected.')}
+              onClick={() => handleDownload(selected)}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm bg-navy-900 text-white text-sm font-medium hover:bg-navy-800 transition-colors"
             >
               <Download size={15} /> Download Document

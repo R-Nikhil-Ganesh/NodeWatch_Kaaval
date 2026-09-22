@@ -3,6 +3,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { Card, Button, IntegrityBadge, Badge, Input } from './Common';
 import { Evidence, UserRole, IntegrityStatus, EvidenceType, DESIGNATIONS, EvidenceVisibility, EvidenceClassification, Case } from '../types';
+import { computeSha256 } from '../utils/hashing';
+import { verifyEvidenceIntegrity } from '../services/verificationService';
+import type { VerificationResult } from '../services/types';
 import { 
     Eye, Lock, Unlock, FileText, Image as ImageIcon, Box, AlertTriangle, Loader2, 
     X, CheckCircle, Shield, Settings, Search, ArrowUpDown, LayoutGrid, Network, 
@@ -395,34 +398,12 @@ const ClassificationDetailModal = ({
     );
 };
 
-// Cryptographic SHA-256 computation in the browser
-async function computeSha256(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Deterministic metadata hashing matching backend hashingService
-async function computeMetadataHash(payload: Record<string, any>): Promise<string> {
-    const ordered = Object.fromEntries(
-        Object.entries(payload)
-            .filter(([_, v]) => v !== undefined && v !== null)
-            .sort(([a], [b]) => a.localeCompare(b))
-    );
-    const encoder = new TextEncoder();
-    const data = encoder.encode(JSON.stringify(ordered));
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 interface UploadEvidenceModalProps {
     cases: Case[];
     initialCaseId: string;
     existingEvidence: Evidence[];
     onClose: () => void;
-    onUploadSuccess: (newEvidence: Evidence) => void;
+    onUploadSuccess: (caseId: string) => void;
 }
 
 const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
@@ -432,7 +413,7 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
     onClose,
     onUploadSuccess,
 }) => {
-    const { currentUser } = useStore();
+    const { currentUser, uploadEvidenceFile } = useStore();
     const [targetCaseId, setTargetCaseId] = useState(initialCaseId || (cases[0]?.caseId || ''));
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -572,65 +553,40 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
         setIsSubmitting(true);
 
         try {
-            const evidenceId = `EV-${Date.now().toString(36).toUpperCase()}`;
-            const effectiveFileHash = computedFileHash || await computeSha256(selectedFile);
-            const effectiveSourceHash = sourceHash || effectiveFileHash;
             const effectiveClassification = isPrimary ? EvidenceClassification.PRIMARY : EvidenceClassification.SECONDARY;
 
-            // Deterministic metadata hash matching blockchain chaincode
-            const metaPayload = {
+            // Uploads the real file bytes (stored in MinIO, hashed server-side)
+            // instead of building an Evidence object whose `fileUrl` was a
+            // browser-only blob: URL with no durable file behind it.
+            const result = await uploadEvidenceFile({
                 caseId: targetCaseId,
-                evidenceId,
+                file: selectedFile,
                 name: evidenceName || selectedFile.name,
                 type: evidenceType,
                 location: location || 'Crime Scene',
-                submittedBy: currentUser.name || currentUser.id,
-                fileHash: effectiveFileHash,
-                sourceHash: effectiveSourceHash,
-            };
-            const metadataHash = await computeMetadataHash(metaPayload);
-
-            const newEvidence: Evidence = {
-                evidenceId,
-                caseId: targetCaseId,
-                name: evidenceName || selectedFile.name,
-                fileName: selectedFile.name,
-                type: evidenceType,
-                mimeType: selectedFile.type || 'application/octet-stream',
-                fileSizeBytes: selectedFile.size,
-                fileUrl: filePreview || undefined,
-                fileHash: effectiveFileHash,
-                metadataHash,
-                sourceHash: effectiveSourceHash,
-                liftingVideo: liftingVideo ? liftingVideo.name : undefined,
-                liftingVideoHash: liftingVideoHash || undefined,
+                notes: notes || undefined,
                 classification: effectiveClassification,
                 riskLevel,
-                integrityStatus: IntegrityStatus.NOT_CHECKED,
-                approvedForLegal: false,
-                location: location || 'Crime Scene',
-                timestamp: new Date().toISOString(),
-                uploadedAt: new Date().toISOString(),
-                uploadedBy: currentUser.id,
-                role: currentUser.role,
-                custodian: currentUser.name || currentUser.id,
-                currentCustodianName: currentUser.name,
-                ownerMsp: 'PoliceMSP',
-                onChainStatus: 'BLOCKCHAIN_PENDING',
-                notes: notes || undefined,
+                sourceHash: sourceHash || undefined,
+                liftingVideo: liftingVideo || undefined,
                 linkedEvidenceIds,
                 visibility: {
                     isRestricted,
                     allowedRoles: isRestricted ? allowedRoles : [],
                     allowedDesignations: [],
                     allowedUserIds: [],
-                }
-            };
+                },
+            });
 
-            onUploadSuccess(newEvidence);
+            if (!result.ok) {
+                alert(result.message || 'Evidence upload failed. Please try again.');
+                return;
+            }
+
+            onUploadSuccess(targetCaseId);
         } catch (err) {
-            console.error('Failed to prepare evidence upload:', err);
-            alert('An error occurred while preparing the evidence upload. Please try again.');
+            console.error('Failed to upload evidence:', err);
+            alert('An error occurred while uploading the evidence. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -1006,13 +962,14 @@ const UploadEvidenceModal: React.FC<UploadEvidenceModalProps> = ({
 };
 
 export const EvidenceVault = () => {
-    const { cases, evidence, currentUser, addEvidence, addLog, updateEvidenceVisibility, issueSection63Certificate } = useStore();
+    const { cases, evidence, currentUser, addLog, updateEvidenceVisibility, issueSection63Certificate } = useStore();
     const [selectedCaseId, setSelectedCaseId] = useState<string>('');
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [viewingEvidence, setViewingEvidence] = useState<Evidence | null>(null);
     const [classDetailEvidence, setClassDetailEvidence] = useState<Evidence | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [verificationComplete, setVerificationComplete] = useState(false);
+    const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(null);
     const [managingAccess, setManagingAccess] = useState<Evidence | null>(null);
 
     const [certModalOpen, setCertModalOpen] = useState(false);
@@ -1064,24 +1021,32 @@ export const EvidenceVault = () => {
         return 0;
     });
 
-    const handleViewClick = (ev: Evidence) => {
+    const handleViewClick = async (ev: Evidence) => {
         setViewingEvidence(ev);
         setIsVerifying(true);
         setVerificationComplete(false);
+        setVerifyResult(null);
 
-        setTimeout(() => {
-            setIsVerifying(false);
-            setVerificationComplete(true);
-            if (currentUser) {
-                addLog({ evidenceId: ev.evidenceId, caseId: ev.caseId, accessedBy: currentUser.id, role: currentUser.role, action: 'VIEW', details: 'User opened secure evidence file' });
-            }
-        }, 1500);
+        // Real server-side hash comparison against the ledger-anchored value —
+        // this previously ran a 1.5s timer and then always rendered "Matches"
+        // regardless of the exhibit's actual integrity status.
+        const result = await verifyEvidenceIntegrity(ev.evidenceId, () => {}, {
+            actorId: currentUser?.id,
+            actorRole: currentUser?.role,
+        });
+        setVerifyResult(result);
+        setIsVerifying(false);
+        setVerificationComplete(true);
+        if (currentUser) {
+            addLog({ evidenceId: ev.evidenceId, caseId: ev.caseId, accessedBy: currentUser.id, role: currentUser.role, action: 'VIEW', details: 'User opened secure evidence file' });
+        }
     };
 
     const handleCloseModal = () => {
         setViewingEvidence(null);
         setIsVerifying(false);
         setVerificationComplete(false);
+        setVerifyResult(null);
     };
 
     const handleSaveAccess = (newVisibility: EvidenceVisibility) => {
@@ -1100,7 +1065,7 @@ export const EvidenceVault = () => {
     const handleIssueCert = () => {
         if (certEvidenceId && certFile) {
             const certRef = `CERT-${Date.now()}.pdf`;
-            issueSection63Certificate(certEvidenceId, certRef);
+            issueSection63Certificate(certEvidenceId, certRef, certFile);
             setCertModalOpen(false);
             setCertEvidenceId(null);
             setCertFile(null);
@@ -1261,21 +1226,28 @@ export const EvidenceVault = () => {
                     <div className="bg-white w-full max-w-4xl rounded-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-line-200 bg-paper-50">
                             <div>
-                                <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">Secure View: {viewingEvidence.fileName}{verificationComplete && viewingEvidence.integrityStatus === IntegrityStatus.VERIFIED && (<Badge color="green">Secure</Badge>)}</h3>
+                                <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">Secure View: {viewingEvidence.fileName}{verificationComplete && verifyResult?.success && (<Badge color="green">Secure</Badge>)}</h3>
                                 <p className="text-xs text-ink-500 font-mono">{viewingEvidence.evidenceId}</p>
                             </div>
                             <button onClick={handleCloseModal} className="text-ink-300 hover:text-ink-700 transition-colors"><X size={24} /></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center min-h-[400px] bg-paper-100">
                             {isVerifying ? (
-                                <div className="text-center"><Loader2 className="w-16 h-16 text-navy-500 animate-spin mx-auto mb-4" /><h4 className="text-lg font-bold text-navy-900">Verifying Integrity</h4><p className="text-ink-500 mt-1">Validating SHA-256 Hash against Blockchain Ledger...</p></div>
+                                <div className="text-center"><Loader2 className="w-16 h-16 text-navy-500 animate-spin mx-auto mb-4" /><h4 className="text-lg font-bold text-navy-900">Verifying Integrity</h4><p className="text-ink-500 mt-1">Comparing the stored hash against the ledger-anchored record...</p></div>
                             ) : (
                                 <div className="w-full flex flex-col items-center animate-in fade-in duration-300">
-                                    {viewingEvidence.integrityStatus === IntegrityStatus.COMPROMISED && (<div className="w-full mb-6 bg-status-urgentBg border border-status-urgent/20 p-4 rounded-sm flex items-start gap-3"><AlertTriangle className="text-status-urgent shrink-0 mt-0.5" /><div><h4 className="text-sm font-bold text-status-urgent">Integrity Warning</h4><p className="text-xs text-status-urgent mt-1">The hash of this file does not match the blockchain record. The file may have been tampered with.</p></div></div>)}
+                                    {verifyResult && !verifyResult.success && (<div className="w-full mb-6 bg-status-urgentBg border border-status-urgent/20 p-4 rounded-sm flex items-start gap-3"><AlertTriangle className="text-status-urgent shrink-0 mt-0.5" /><div><h4 className="text-sm font-bold text-status-urgent">Integrity Warning</h4><p className="text-xs text-status-urgent mt-1">{verifyResult.message}</p></div></div>)}
                                     {renderContentPreview(viewingEvidence)}
                                     <div className="mt-8 w-full max-w-2xl bg-white rounded-sm p-4 border border-line-200">
                                         <h5 className="text-xs font-bold uppercase text-ink-300 mb-3">Integrity Verification</h5>
-                                        <div className="flex items-center gap-4 text-sm"><div className="flex-1"><p className="text-ink-500 text-xs">File Hash (vs. Ledger)</p><p className="font-mono text-navy-900 truncate">{viewingEvidence.fileHash}</p></div><div className="flex items-center gap-2 text-status-resolved font-bold bg-status-resolvedBg px-3 py-1 rounded-sm"><CheckCircle size={16} /> Matches</div></div>
+                                        <div className="flex items-center gap-4 text-sm">
+                                            <div className="flex-1"><p className="text-ink-500 text-xs">File Hash (vs. Ledger)</p><p className="font-mono text-navy-900 truncate">{verifyResult?.currentHash || viewingEvidence.fileHash}</p></div>
+                                            {verifyResult?.success ? (
+                                                <div className="flex items-center gap-2 text-status-resolved font-bold bg-status-resolvedBg px-3 py-1 rounded-sm"><CheckCircle size={16} /> Matches</div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-status-urgent font-bold bg-status-urgentBg px-3 py-1 rounded-sm"><XCircle size={16} /> Mismatch</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -1313,9 +1285,8 @@ export const EvidenceVault = () => {
                     initialCaseId={selectedCaseId}
                     existingEvidence={evidence.filter(e => e.caseId === selectedCaseId)}
                     onClose={() => setUploadModalOpen(false)}
-                    onUploadSuccess={(newEvidence) => {
-                        addEvidence(newEvidence);
-                        setSelectedCaseId(newEvidence.caseId);
+                    onUploadSuccess={(caseId) => {
+                        setSelectedCaseId(caseId);
                         setUploadModalOpen(false);
                     }}
                 />

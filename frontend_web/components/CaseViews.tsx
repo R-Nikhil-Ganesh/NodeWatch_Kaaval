@@ -133,7 +133,7 @@ const ShieldAlertIcon = ({ stage }: { stage: string }) => {
 
 
 export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => void }) => {
-    const { cases, evidence, logs, documents, users, currentUser, addEvidence, addLog, updateCaseStatus, verifyEvidence, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody, reassignCase } = useStore();
+    const { cases, evidence, logs, documents, users, currentUser, uploadEvidenceFile, addLog, updateCaseStatus, verifyEvidence, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody, reassignCase } = useStore();
     const currentCase = cases.find(c => c.caseId === caseId);
     
     // View State
@@ -279,8 +279,8 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
 
     const handleUpload = () => {
         if (!selectedFile) return;
-        
-        const typeStr = selectedFile.type.includes('image') ? EvidenceType.IMAGE : 
+
+        const typeStr = selectedFile.type.includes('image') ? EvidenceType.IMAGE :
                         selectedFile.type.includes('pdf') ? EvidenceType.PDF : EvidenceType.WORD;
 
         if (currentUser.role === UserRole.POLICE && typeStr !== EvidenceType.IMAGE) {
@@ -290,36 +290,28 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
 
         setIsUploading(true);
 
-        const finalizeUpload = (locationStr: string) => {
-            const newEvidence: Evidence = {
-                evidenceId: `EV-${Date.now().toString().slice(-6)}`,
-                caseId: caseId,
+        const finalizeUpload = async (locationStr: string) => {
+            // Uploads the actual file bytes to the backend (stored in MinIO,
+            // hashed server-side) instead of computing a hash client-side and
+            // posting a browser-only blob: URL that has no real file behind it.
+            const result = await uploadEvidenceFile({
+                caseId,
+                file: selectedFile,
                 type: typeStr,
-                fileName: selectedFile.name,
-                uploadedBy: currentUser.id,
-                role: currentUser.role,
-                timestamp: new Date().toISOString(),
                 location: locationStr,
-                fileHash: `0x${Math.random().toString(16).slice(2)}...`,
-                metadataHash: `0x${Math.random().toString(16).slice(2)}...`,
-                custodian: 'Police Evidence Room',
-                integrityStatus: IntegrityStatus.NOT_CHECKED,
-                approvedForLegal: false,
-                visibility: {
-                    isRestricted: false,
-                    allowedRoles: [],
-                    allowedDesignations: [],
-                    allowedUserIds: []
-                },
                 notes: evidenceNotes,
-                linkedEvidenceIds: linkedEvidenceIds,
                 classification: EvidenceClassification.SECONDARY,
                 sourceHash: sourceHash || undefined,
-                liftingVideo: liftingVideo ? liftingVideo.name : undefined,
-                liftingVideoHash: liftingVideo ? `0x${Math.random().toString(16).slice(2)}...` : undefined
-            };
-    
-            addEvidence(newEvidence);
+                liftingVideo: liftingVideo || undefined,
+                linkedEvidenceIds,
+            });
+
+            if (!result.ok) {
+                alert(result.message || 'Evidence upload failed. Please try again.');
+                setIsUploading(false);
+                return;
+            }
+
             setUploadModalOpen(false);
             setSelectedFile(null);
             setEvidenceNotes('');
@@ -329,17 +321,25 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
             setIsUploading(false);
         };
 
+        const runUpload = (locationStr: string) => {
+            finalizeUpload(locationStr).catch((err) => {
+                console.error('Evidence upload failed:', err);
+                alert('Upload failed while computing the evidence hash. Please try again.');
+                setIsUploading(false);
+            });
+        };
+
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     const { latitude, longitude } = position.coords;
-                    finalizeUpload(`GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+                    runUpload(`GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
                 },
                 (error) => {
                     console.error("Geolocation error:", error);
                     const proceed = confirm("Could not acquire live location. Upload without precise GPS?");
                     if (proceed) {
-                        finalizeUpload("GPS: Unavailable (Signal Lost/Denied)");
+                        runUpload("GPS: Unavailable (Signal Lost/Denied)");
                     } else {
                         setIsUploading(false);
                     }
@@ -348,7 +348,7 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
             );
         } else {
             alert("Geolocation is not supported by your browser.");
-            finalizeUpload("GPS: Not Supported");
+            runUpload("GPS: Not Supported");
         }
     };
 
@@ -375,7 +375,13 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
              details: `Viewed evidence ${e.fileName}`
         });
 
-        alert(`Viewing ${e.fileName}\nHash: ${e.fileHash}\n\n(File content simulated)`);
+        // Opens the real stored file (a pre-signed MinIO URL resolved by the
+        // backend) rather than an alert() claiming to show simulated content.
+        if (e.fileUrl) {
+            window.open(e.fileUrl, '_blank', 'noopener,noreferrer');
+        } else {
+            alert(`No file is stored for ${e.fileName}.`);
+        }
     };
 
     const tableHeaders = isLegal 

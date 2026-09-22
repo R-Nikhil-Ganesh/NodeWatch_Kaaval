@@ -69,11 +69,17 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
   useEffect(() => {
     const load = async () => {
       setLoadingEvidence(true);
-      const ev = await getAllEvidence();
-      setAllEvidence(ev);
-      const defaultId = initialEvidenceId ?? (ev.length > 0 ? ev[0].evidenceId : '');
-      setSelectedId(defaultId);
-      setLoadingEvidence(false);
+      try {
+        const ev = await getAllEvidence();
+        setAllEvidence(ev);
+        const defaultId = initialEvidenceId ?? (ev.length > 0 ? ev[0].evidenceId : '');
+        setSelectedId(defaultId);
+      } catch {
+        setAllEvidence([]);
+        setSelectedId('');
+      } finally {
+        setLoadingEvidence(false);
+      }
     };
     load();
   }, [initialEvidenceId]);
@@ -82,13 +88,19 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
   const loadTimeline = useCallback(async (id: string) => {
     if (!id) return;
     setLoadingTimeline(true);
-    const [evts, cr] = await Promise.all([
-      getCustodyTimeline(id),
-      getChainIntegrityReport(id),
-    ]);
-    setEvents(evts);
-    setChainReport(cr);
-    setLoadingTimeline(false);
+    try {
+      const [evts, cr] = await Promise.all([
+        getCustodyTimeline(id),
+        getChainIntegrityReport(id),
+      ]);
+      setEvents(evts);
+      setChainReport(cr);
+    } catch {
+      setEvents([]);
+      setChainReport(null);
+    } finally {
+      setLoadingTimeline(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -116,6 +128,10 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
         <Card title="Select Evidence Item">
           {loadingEvidence ? (
             <div className="text-sm text-ink-400">Loading evidence…</div>
+          ) : allEvidence.length === 0 ? (
+            <div className="text-sm text-ink-400">
+              No evidence items are registered — there is no custody history to display.
+            </div>
           ) : (
             <div className="flex items-center gap-4">
               <select
@@ -125,7 +141,7 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
               >
                 {allEvidence.map(ev => (
                   <option key={ev.evidenceId} value={ev.evidenceId}>
-                    {ev.evidenceId} — {ev.type} — {ev.description.length > 50 ? ev.description.slice(0, 50) + '…' : ev.description} (Case: {ev.caseId})
+                    {ev.evidenceId} — {ev.type} — {ev.description.length > 50 ? ev.description.slice(0, 50) + '…' : ev.description} (Case: {ev.caseFirNumber ?? ev.caseId})
                   </option>
                 ))}
               </select>
@@ -134,7 +150,7 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
                   <span className="text-ink-300">|</span>
                   <span className="font-medium text-ink-700">{selectedEvidence.type}</span>
                   <span className="text-ink-300">·</span>
-                  <span>{selectedEvidence.caseId}</span>
+                  <span>{selectedEvidence.caseFirNumber ?? selectedEvidence.caseId}</span>
                 </div>
               )}
             </div>
@@ -172,11 +188,35 @@ const CustodyTimelinePage: React.FC<Props> = ({ onNavigate, initialEvidenceId })
                 {chainReport.totalEvents} events on ledger
               </span>
             </div>
+
+            {/* Failure detail — the report is computed server-side and can
+                genuinely fail, so the reasons are shown rather than hidden. */}
+            {!chainReport.verified && (
+              <div className="mt-4 border border-red-700 bg-red-950/40 rounded-sm px-4 py-3">
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-red-300 mb-2">
+                  <AlertTriangle size={14} />
+                  Chain of custody could not be verified
+                </p>
+                {chainReport.issues.length > 0 ? (
+                  <ul className="list-disc pl-5 space-y-1">
+                    {chainReport.issues.map((issue, i) => (
+                      <li key={i} className="text-xs text-red-100 leading-relaxed">
+                        {issue}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-red-100">
+                    No specific discrepancy was reported by the ledger check.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* Timeline */}
-        {loadingTimeline ? (
+        {!selectedId ? null : loadingTimeline ? (
           <div className="flex items-center justify-center h-48 text-ink-500">
             <div className="w-6 h-6 border-2 border-navy-900 border-t-transparent rounded-full animate-spin mr-3" />
             Loading custody timeline…

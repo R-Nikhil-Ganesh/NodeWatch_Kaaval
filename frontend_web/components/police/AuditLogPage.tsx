@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldCheck, ShieldX, Download, X, Search } from 'lucide-react';
 import { Card, Badge, Button, Table } from '../Common';
 import { getAuditEvents } from '../../services/auditService';
-import type { AuditFilters } from '../../services/auditService';
+import type { AuditEvent } from '../../services/types';
 
 interface NavProps {
   onNavigate: (view: string, id?: string) => void;
@@ -52,8 +52,23 @@ const VerificationBadge = ({
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+const CSV_COLUMNS: { header: string; value: (e: AuditEvent) => string }[] = [
+  { header: 'Timestamp', value: e => e.timestamp },
+  { header: 'User', value: e => e.user },
+  { header: 'Role', value: e => e.role ?? '' },
+  { header: 'Action', value: e => e.action },
+  { header: 'Details', value: e => e.details ?? '' },
+  { header: 'Evidence ID', value: e => e.evidenceId ?? '' },
+  { header: 'Case ID', value: e => e.caseId ?? '' },
+  { header: 'FIR Number', value: e => e.caseFirNumber ?? '' },
+  { header: 'Transaction ID', value: e => e.txId },
+  { header: 'Verification', value: e => e.verificationStatus },
+];
+
+/** RFC-4180 escaping: wrap in quotes and double any embedded quote. */
+const csvCell = (raw: string) => `"${String(raw ?? '').replace(/"/g, '""')}"`;
+
 export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) => {
-  const [filters, setFilters] = useState<AuditFilters>({});
   const [query, setQuery] = useState('');
   const [filterCaseId, setFilterCaseId] = useState('');
   const [filterEvidenceId, setFilterEvidenceId] = useState('');
@@ -61,28 +76,73 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
-  // Derive all events unfiltered for building select options
-  const allEvents = useMemo(() => getAuditEvents(), []);
+  const [allEvents, setAllEvents] = useState<AuditEvent[]>([]);
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const uniqueCaseIds = useMemo(
-    () => [...new Set(allEvents.map(e => e.caseId).filter(Boolean))] as string[],
-    [allEvents],
-  );
+  // Unfiltered pull, used only to populate the Case / Action dropdowns.
+  useEffect(() => {
+    let cancelled = false;
+    getAuditEvents()
+      .then(rows => {
+        if (!cancelled) setAllEvents(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setAllEvents([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Case dropdown: the value is the real caseId, the label is the FIR number.
+  const caseOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    allEvents.forEach(e => {
+      if (e.caseId && !byId.has(e.caseId)) byId.set(e.caseId, e.caseFirNumber ?? e.caseId);
+    });
+    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+  }, [allEvents]);
 
   const uniqueActions = useMemo(
     () => [...new Set(allEvents.map(e => e.action))],
     [allEvents],
   );
 
-  const events = useMemo(() => {
-    return getAuditEvents({
-      query: query.trim() || undefined,
-      caseId: filterCaseId || undefined,
-      evidenceId: filterEvidenceId.trim() || undefined,
-      actionType: filterAction || undefined,
-      dateFrom: filterDateFrom || undefined,
-      dateTo: filterDateTo || undefined,
-    });
+  // Filtered pull — debounced on the free-text box, immediate for the rest.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const timer = setTimeout(() => {
+      getAuditEvents({
+        query: query.trim() || undefined,
+        caseId: filterCaseId || undefined,
+        evidenceId: filterEvidenceId.trim() || undefined,
+        actionType: filterAction || undefined,
+        dateFrom: filterDateFrom || undefined,
+        dateTo: filterDateTo || undefined,
+      })
+        .then(rows => {
+          if (cancelled) return;
+          setEvents(rows);
+          setError(null);
+        })
+        .catch((err: any) => {
+          if (cancelled) return;
+          setEvents([]);
+          setError(err?.message || 'Unable to load the audit log.');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, query.trim() || filterEvidenceId.trim() ? 300 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query, filterCaseId, filterEvidenceId, filterAction, filterDateFrom, filterDateTo]);
 
   const handleClear = () => {
@@ -92,11 +152,29 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
     setFilterAction('');
     setFilterDateFrom('');
     setFilterDateTo('');
-    setFilters({});
   };
 
+  // Builds the CSV from the rows currently loaded and hands it to the browser
+  // as a Blob download — no server round-trip needed.
   const handleExportCSV = () => {
-    alert('CSV export initiated. The audit log will be downloaded shortly.');
+    if (events.length === 0) return;
+
+    const lines = [
+      CSV_COLUMNS.map(c => csvCell(c.header)).join(','),
+      ...events.map(e => CSV_COLUMNS.map(c => csvCell(c.value(e))).join(',')),
+    ];
+    // BOM keeps Excel from mangling non-ASCII names.
+    const blob = new Blob(['﻿' + lines.join('\r\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const hasActiveFilters =
@@ -139,9 +217,9 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
             className="w-full px-3 py-2 text-sm border border-line-300 rounded-sm bg-white text-ink-900 outline-none focus:border-navy-500"
           >
             <option value="">All Cases</option>
-            {uniqueCaseIds.map(id => (
-              <option key={id} value={id}>
-                {id}
+            {caseOptions.map(opt => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -205,17 +283,35 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
               <X size={14} /> Clear Filters
             </Button>
           )}
-          <Button variant="secondary" size="sm" onClick={handleExportCSV}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={loading || events.length === 0}
+          >
             <Download size={14} /> Export CSV
           </Button>
         </div>
       </div>
 
+      {error && (
+        <div className="flex items-center gap-2 border border-status-urgent/20 bg-status-urgentBg text-status-urgent rounded-sm px-4 py-3">
+          <ShieldX size={16} className="shrink-0" />
+          <span className="text-sm font-medium">{error}</span>
+        </div>
+      )}
+
       {/* ── Results count ──────────────────────────────────────────────── */}
       <p className="text-xs text-ink-400">
-        Showing{' '}
-        <span className="font-semibold text-ink-700">{events.length}</span> audit event
-        {events.length !== 1 ? 's' : ''}
+        {loading ? (
+          <>Loading audit events…</>
+        ) : (
+          <>
+            Showing{' '}
+            <span className="font-semibold text-ink-700">{events.length}</span> audit event
+            {events.length !== 1 ? 's' : ''}
+          </>
+        )}
       </p>
 
       {/* ── Audit Table ────────────────────────────────────────────────── */}
@@ -232,7 +328,7 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
             'Verification',
           ]}
         >
-          {events.map(event => {
+          {!loading && events.map(event => {
             const { time, date } = formatTimestamp(event.timestamp);
             return (
               <tr key={event.id} className="hover:bg-paper-50 transition-colors">
@@ -276,10 +372,12 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
                   )}
                 </td>
 
-                {/* Case */}
+                {/* Case — the FIR number is the human reference */}
                 <td className="px-5 py-3">
-                  {event.caseId ? (
-                    <span className="font-mono text-xs text-ink-700">{event.caseId}</span>
+                  {event.caseFirNumber || event.caseId ? (
+                    <span className="font-mono text-xs text-ink-700">
+                      {event.caseFirNumber ?? event.caseId}
+                    </span>
                   ) : (
                     <span className="text-xs text-ink-300">—</span>
                   )}
@@ -297,6 +395,25 @@ export const AuditLogPage: React.FC<NavProps> = ({ onNavigate: _onNavigate }) =>
               </tr>
             );
           })}
+          {!loading && events.length === 0 && (
+            <tr>
+              <td colSpan={8} className="px-5 py-12 text-center text-sm text-ink-400">
+                {hasActiveFilters
+                  ? 'No audit events match the current filters.'
+                  : 'No audit events have been recorded yet.'}
+              </td>
+            </tr>
+          )}
+          {loading && (
+            <tr>
+              <td colSpan={8} className="px-5 py-12 text-center text-sm text-ink-400">
+                <span className="inline-flex items-center gap-3">
+                  <span className="w-5 h-5 border-2 border-navy-900 border-t-transparent rounded-full animate-spin" />
+                  Loading audit events…
+                </span>
+              </td>
+            </tr>
+          )}
         </Table>
       </Card>
 

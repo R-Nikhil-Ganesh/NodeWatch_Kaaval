@@ -68,6 +68,7 @@ const ForensicStatusPill: React.FC<{ status: ForensicRecord['examinationStatus']
     'Under Examination': 'bg-status-pendingBg text-status-pending border-status-pending/20',
     'Examination Complete': 'bg-teal-50 text-teal-700 border-teal-200',
     'Report Available': 'bg-status-resolvedBg text-status-resolved border-status-resolved/20',
+    'Not Required': 'bg-paper-100 text-ink-400 border-line-200',
   };
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${map[status]}`}>
@@ -107,15 +108,24 @@ const EvidenceDetailPage: React.FC<Props> = ({ evidenceId, onNavigate, onBack })
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [evidence, fr, cr] = await Promise.all([
-      getEvidenceById(evidenceId),
-      getForensicStatus(evidenceId),
-      getChainIntegrityReport(evidenceId),
-    ]);
-    setEv(evidence ?? null);
-    setForensicRecord(fr ?? null);
-    setChainReport(cr);
-    setLoading(false);
+    try {
+      // getEvidenceById / getForensicStatus resolve to undefined when the
+      // record does not exist — they no longer throw on a 404.
+      const [evidence, fr, cr] = await Promise.all([
+        getEvidenceById(evidenceId),
+        getForensicStatus(evidenceId),
+        getChainIntegrityReport(evidenceId).catch(() => null),
+      ]);
+      setEv(evidence ?? null);
+      setForensicRecord(fr ?? null);
+      setChainReport(cr);
+    } catch {
+      setEv(null);
+      setForensicRecord(null);
+      setChainReport(null);
+    } finally {
+      setLoading(false);
+    }
   }, [evidenceId]);
 
   useEffect(() => { load(); }, [load]);
@@ -176,7 +186,12 @@ const EvidenceDetailPage: React.FC<Props> = ({ evidenceId, onNavigate, onBack })
               <EvidenceTypeIcon />
               <span className="font-medium">{ev.type}</span>
               <span className="text-line-300">|</span>
-              <span className="text-navy-700 font-medium">{ev.caseId}</span>
+              <button
+                onClick={() => onNavigate('case_detail', ev.caseId)}
+                className="text-navy-700 font-medium hover:text-navy-900 hover:underline"
+              >
+                {ev.caseFirNumber ?? ev.caseId}
+              </button>
             </div>
           </div>
           <Button onClick={() => setIsVerifyOpen(true)}>
@@ -197,7 +212,7 @@ const EvidenceDetailPage: React.FC<Props> = ({ evidenceId, onNavigate, onBack })
               <MetaRow label="Type" value={
                 <span className="flex items-center gap-1.5"><EvidenceTypeIcon />{ev.type}</span>
               } />
-              <MetaRow label="Case" value={ev.caseId} />
+              <MetaRow label="Case" value={ev.caseFirNumber ?? ev.caseId} />
               <MetaRow label="Status" value={<EvidenceStatusPill status={ev.status} />} />
               <MetaRow label="Description" value={ev.description} />
               <MetaRow label="Collected" value={fmtDateTime(ev.collectedAt)} />
@@ -334,6 +349,28 @@ const EvidenceDetailPage: React.FC<Props> = ({ evidenceId, onNavigate, onBack })
                 <p className="text-xs text-ink-500">
                   {chainReport.totalEvents} custody events recorded on the blockchain ledger.
                 </p>
+
+                {!chainReport.verified && (
+                  <div className="border border-status-urgent/20 bg-status-urgentBg rounded-sm px-4 py-3">
+                    <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-status-urgent mb-2">
+                      <AlertTriangle size={14} />
+                      Chain of custody could not be verified
+                    </p>
+                    {chainReport.issues.length > 0 ? (
+                      <ul className="list-disc pl-5 space-y-1">
+                        {chainReport.issues.map((issue, i) => (
+                          <li key={i} className="text-xs text-status-urgent leading-relaxed">
+                            {issue}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-status-urgent">
+                        No specific discrepancy was reported by the ledger check.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-sm text-ink-400">No chain of custody data available.</p>
@@ -401,7 +438,7 @@ const EvidenceDetailPage: React.FC<Props> = ({ evidenceId, onNavigate, onBack })
           <Card title="Related Evidence">
             <div className="text-center py-3">
               <p className="text-sm text-ink-600 mb-1">Part of</p>
-              <p className="text-base font-bold text-navy-900 mb-1">{ev.caseId}</p>
+              <p className="text-base font-bold text-navy-900 mb-1">{ev.caseFirNumber ?? ev.caseId}</p>
               <p className="text-xs text-ink-400 mb-4">Multiple evidence items registered in this case</p>
               <Button variant="secondary" size="sm" className="w-full" onClick={() => onNavigate('evidence')}>
                 <Link2 size={13} /> View All Evidence

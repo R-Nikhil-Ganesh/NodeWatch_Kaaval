@@ -1,4 +1,7 @@
-import { ForensicRecord, MOCK_FORENSIC_RECORDS } from './mockData';
+import { apiGet } from './apiClient';
+import type { ForensicRecord } from './types';
+
+export type { ForensicRecord };
 
 export interface ForensicSummary {
   pendingSubmission: number;
@@ -10,25 +13,16 @@ export interface ForensicSummary {
   notRequired: number;
 }
 
-export const getForensicStatus = (evidenceId: string): ForensicRecord | undefined =>
-  MOCK_FORENSIC_RECORDS.find(r => r.evidenceId === evidenceId);
+export const getForensicStatus = (evidenceId: string): Promise<ForensicRecord | undefined> =>
+  apiGet<ForensicRecord[]>('/forensics/records', { evidenceId }).then((rows) => rows[0]);
 
-export const getForensicRecordsForCase = (caseId: string): ForensicRecord[] =>
-  MOCK_FORENSIC_RECORDS.filter(r => r.caseId === caseId);
+/** `caseRef` accepts either a real caseId or a FIR number. */
+export const getForensicRecordsForCase = (caseRef: string): Promise<ForensicRecord[]> =>
+  apiGet<ForensicRecord[]>('/forensics/records', { caseId: caseRef });
 
-export const getAllForensicRecords = (): ForensicRecord[] => MOCK_FORENSIC_RECORDS;
+export const getAllForensicRecords = (): Promise<ForensicRecord[]> =>
+  apiGet<ForensicRecord[]>('/forensics/records');
 
-export const getForensicSummary = (caseId?: string): ForensicSummary => {
-  const records = caseId
-    ? MOCK_FORENSIC_RECORDS.filter(r => r.caseId === caseId)
-    : MOCK_FORENSIC_RECORDS;
-  return {
-    pendingSubmission: records.filter(r => r.examinationStatus === 'Pending Submission').length,
-    inTransit: records.filter(r => r.examinationStatus === 'In Transit').length,
-    receivedByFSL: records.filter(r => r.examinationStatus === 'Received by FSL').length,
-    underExamination: records.filter(r => r.examinationStatus === 'Under Examination').length,
-    examinationComplete: records.filter(r => r.examinationStatus === 'Examination Complete').length,
-    reportAvailable: records.filter(r => r.examinationStatus === 'Report Available').length,
-    notRequired: 0,
-  };
-};
+/** Counts are aggregated in Postgres, so they always match the record rows. */
+export const getForensicSummary = (caseRef?: string): Promise<ForensicSummary> =>
+  apiGet<ForensicSummary>('/forensics/summary', { caseId: caseRef });

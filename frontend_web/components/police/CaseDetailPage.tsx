@@ -39,7 +39,9 @@ const CaseStatusPill: React.FC<{ status: IOCase['status'] }> = ({ status }) => {
     'Under Investigation': 'bg-status-pendingBg text-status-pending border-status-pending/20',
     'Awaiting Forensics': 'bg-purple-50 text-purple-700 border-purple-200',
     'Charge Sheet Preparation': 'bg-status-resolvedBg text-status-resolved border-status-resolved/20',
+    'Submitted to Court': 'bg-navy-50 text-navy-800 border-navy-100',
     'Closed': 'bg-paper-100 text-ink-500 border-line-300',
+    'Frozen': 'bg-status-urgentBg text-status-urgent border-status-urgent/20',
   };
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${map[status]}`}>
@@ -108,6 +110,7 @@ const ForensicStatusPill: React.FC<{ status: ForensicRecord['examinationStatus']
     'Under Examination': 'bg-status-pendingBg text-status-pending border-status-pending/20',
     'Examination Complete': 'bg-teal-50 text-teal-700 border-teal-200',
     'Report Available': 'bg-status-resolvedBg text-status-resolved border-status-resolved/20',
+    'Not Required': 'bg-paper-100 text-ink-400 border-line-200',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${map[status]}`}>
@@ -180,39 +183,59 @@ const CaseDetailPage: React.FC<Props> = ({ caseId, onNavigate, onBack }) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, ev, fr, au] = await Promise.all([
-      getCaseById(caseId),
-      getEvidenceForCase(caseId),
-      getForensicRecordsForCase(caseId),
-      getAuditEvents({ caseId }),
-    ]);
-    setCaseData(c ?? null);
-    setEvidence(ev);
-    setForensics(fr);
-    setAuditEvents(au);
-    if (ev.length > 0) {
-      const firstId = ev[0].evidenceId;
-      setSelectedEvidenceId(firstId);
-      const [ce, cr] = await Promise.all([
-        getCustodyTimeline(firstId),
-        getChainIntegrityReport(firstId),
+    try {
+      const [c, ev, fr, au] = await Promise.all([
+        getCaseById(caseId),
+        getEvidenceForCase(caseId),
+        getForensicRecordsForCase(caseId),
+        getAuditEvents({ caseId }),
       ]);
-      setCustodyEvents(ce);
-      setChainReport(cr);
+      // getCaseById resolves to undefined on a 404 rather than throwing.
+      setCaseData(c ?? null);
+      setEvidence(ev);
+      setForensics(fr);
+      setAuditEvents(au);
+      if (ev.length > 0) {
+        const firstId = ev[0].evidenceId;
+        setSelectedEvidenceId(firstId);
+        const [ce, cr] = await Promise.all([
+          getCustodyTimeline(firstId),
+          getChainIntegrityReport(firstId),
+        ]);
+        setCustodyEvents(ce);
+        setChainReport(cr);
+      } else {
+        setSelectedEvidenceId('');
+        setCustodyEvents([]);
+        setChainReport(null);
+      }
+    } catch {
+      setCaseData(null);
+      setEvidence([]);
+      setForensics([]);
+      setAuditEvents([]);
+      setCustodyEvents([]);
+      setChainReport(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [caseId]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleEvidenceSelect = async (id: string) => {
     setSelectedEvidenceId(id);
-    const [ce, cr] = await Promise.all([
-      getCustodyTimeline(id),
-      getChainIntegrityReport(id),
-    ]);
-    setCustodyEvents(ce);
-    setChainReport(cr);
+    try {
+      const [ce, cr] = await Promise.all([
+        getCustodyTimeline(id),
+        getChainIntegrityReport(id),
+      ]);
+      setCustodyEvents(ce);
+      setChainReport(cr);
+    } catch {
+      setCustodyEvents([]);
+      setChainReport(null);
+    }
   };
 
   if (loading) {
@@ -511,6 +534,13 @@ const EvidenceTab: React.FC<{
         </td>
       </tr>
     ))}
+    {evidence.length === 0 && (
+      <tr>
+        <td colSpan={11} className="px-5 py-12 text-center text-sm text-ink-400">
+          No evidence items are registered against this case.
+        </td>
+      </tr>
+    )}
   </Table>
 );
 
@@ -529,17 +559,23 @@ const CustodyTab: React.FC<{
   <div className="space-y-5">
     {/* Evidence Selector */}
     <Card title="Select Evidence Item">
-      <select
-        value={selectedEvidenceId}
-        onChange={e => onSelectEvidence(e.target.value)}
-        className="w-full max-w-lg px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500"
-      >
-        {evidence.map(ev => (
-          <option key={ev.evidenceId} value={ev.evidenceId}>
-            {ev.evidenceId} — {ev.type} — {ev.description.slice(0, 40)}
-          </option>
-        ))}
-      </select>
+      {evidence.length === 0 ? (
+        <p className="text-sm text-ink-400">
+          No evidence items are registered against this case, so there is no custody history.
+        </p>
+      ) : (
+        <select
+          value={selectedEvidenceId}
+          onChange={e => onSelectEvidence(e.target.value)}
+          className="w-full max-w-lg px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:border-navy-500 focus:ring-1 focus:ring-navy-500"
+        >
+          {evidence.map(ev => (
+            <option key={ev.evidenceId} value={ev.evidenceId}>
+              {ev.evidenceId} — {ev.type} — {ev.description.slice(0, 40)}
+            </option>
+          ))}
+        </select>
+      )}
     </Card>
 
     {/* Integrity Banner */}
@@ -570,6 +606,28 @@ const CustodyTab: React.FC<{
             {chainReport.totalEvents} events recorded on ledger
           </span>
         </div>
+
+        {!chainReport.verified && (
+          <div className="mt-4 border border-status-urgent/20 bg-status-urgentBg rounded-sm px-4 py-3">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-status-urgent mb-2">
+              <AlertTriangle size={14} />
+              Chain of custody could not be verified
+            </p>
+            {chainReport.issues.length > 0 ? (
+              <ul className="list-disc pl-5 space-y-1">
+                {chainReport.issues.map((issue, i) => (
+                  <li key={i} className="text-xs text-status-urgent leading-relaxed">
+                    {issue}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-status-urgent">
+                No specific discrepancy was reported by the ledger check.
+              </p>
+            )}
+          </div>
+        )}
       </div>
     )}
 
@@ -582,6 +640,9 @@ const CustodyTab: React.FC<{
         </Button>
       }
     >
+      {custodyEvents.length === 0 && (
+        <p className="text-sm text-ink-400 py-4">No custody events recorded on the ledger.</p>
+      )}
       <div className="relative pl-6">
         <div className="absolute left-2 top-2 bottom-2 w-px bg-line-200" />
         {custodyEvents.map((ev, i) => (
@@ -671,6 +732,13 @@ const ForensicsTab: React.FC<{
             </tr>
           );
         })}
+        {forensics.length === 0 && (
+          <tr>
+            <td colSpan={7} className="px-5 py-12 text-center text-sm text-ink-400">
+              No forensic records have been raised for this case.
+            </td>
+          </tr>
+        )}
       </Table>
     </div>
   );
@@ -680,61 +748,13 @@ const ForensicsTab: React.FC<{
 // Tab: Documents
 // ════════════════════════════════════════════════════════════════════════════
 
-const STATIC_DOCS = [
-  { name: 'First Information Report (FIR)', date: '02 Sep 2026', available: true, icon: <FileText size={16} className="text-navy-700" /> },
-  { name: 'Panchanama', date: '02 Sep 2026', available: true, icon: <FileText size={16} className="text-navy-700" /> },
-  { name: 'Evidence Collection Form', date: '02 Sep 2026', available: true, icon: <FileText size={16} className="text-navy-700" /> },
-  { name: 'Witness Statement — K. Nair', date: '03 Sep 2026', available: true, icon: <Users size={16} className="text-ink-500" /> },
-  { name: 'Witness Statement — M. Pillai', date: '04 Sep 2026', available: true, icon: <Users size={16} className="text-ink-500" /> },
-  { name: 'Forensic Report — EV-0142', date: '10 Sep 2026', available: true, verified: true, icon: <FlaskConical size={16} className="text-purple-600" /> },
-  { name: 'Forensic Report — EV-0143', date: '12 Sep 2026', available: true, icon: <FlaskConical size={16} className="text-purple-600" /> },
-  { name: 'Forensic Report — EV-0144', date: '—', available: false, icon: <FlaskConical size={16} className="text-ink-400" /> },
-  { name: 'Forensic Report — EV-0147', date: '—', available: false, icon: <FlaskConical size={16} className="text-ink-400" /> },
-];
-
+// There is no documents API in the investigating-officer domain, so nothing is
+// listed here rather than showing placeholder filings.
 const DocumentsTab: React.FC = () => (
   <Card title="Case Documents">
-    <div className="divide-y divide-line-200">
-      {STATIC_DOCS.map((doc, i) => (
-        <div key={i} className="flex items-center justify-between py-3.5">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-paper-100 rounded-sm flex items-center justify-center flex-shrink-0">
-              {doc.icon}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-navy-900">{doc.name}</p>
-              <p className="text-xs text-ink-400 mt-0.5">{doc.date}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            {doc.available ? (
-              <>
-                {doc.verified ? (
-                  <span className="flex items-center gap-1 text-xs text-status-resolved font-medium">
-                    <CheckCircle size={12} /> Available — Verified
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-xs text-status-resolved font-medium">
-                    <CheckCircle size={12} /> Available
-                  </span>
-                )}
-                <Button size="sm" variant="secondary">
-                  <ExternalLink size={12} /> View
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="flex items-center gap-1 text-xs text-status-pending font-medium">
-                  <AlertTriangle size={12} /> Pending
-                </span>
-                <Button size="sm" variant="secondary" disabled>
-                  View
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
+    <div className="flex flex-col items-center justify-center py-14 text-ink-400">
+      <FileText size={36} className="mb-3 opacity-30" />
+      <p className="text-sm font-medium">No documents recorded for this case.</p>
     </div>
   </Card>
 );
@@ -765,9 +785,17 @@ const AuditTab: React.FC<{
           </td>
           <td className="px-5 py-3 text-xs text-ink-700">{ev.details}</td>
           <td className="px-5 py-3 whitespace-nowrap text-xs font-mono text-ink-500">{ev.evidenceId ?? '—'}</td>
+          {/* The ledger does not record a client IP, so this stays blank. */}
           <td className="px-5 py-3 whitespace-nowrap text-xs font-mono text-ink-400">{ev.ipAddress ?? '—'}</td>
         </tr>
       ))}
+      {auditEvents.length === 0 && (
+        <tr>
+          <td colSpan={6} className="px-5 py-12 text-center text-sm text-ink-400">
+            No audit events have been recorded for this case.
+          </td>
+        </tr>
+      )}
     </Table>
   </div>
 );

@@ -94,6 +94,19 @@ class ApiService {
     }
   }
 
+  // --- USERS ---
+  // Backs the admin dashboard's officer/forensics counts, which previously
+  // read from a users array that was only ever appended to by registration
+  // and so always rendered zero.
+  async listUsers() {
+    try {
+      const response = await this.api.get('/api/users');
+      return response.data || [];
+    } catch (error) {
+      this.handleError(error);
+    }
+  }
+
   async createCase(
     payload: Partial<Case>,
     userMeta?: { userId?: string; userRole?: string; userOrg?: string }

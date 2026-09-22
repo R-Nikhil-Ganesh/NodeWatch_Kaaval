@@ -15,6 +15,8 @@ import { LegalApp } from './legal/LegalApp';
 import { PoliceCasesPage } from './components/police/PoliceCasesPage';
 import ForensicsPage from './components/police/ForensicsPage';
 import { AuditLogPage } from './components/police/AuditLogPage';
+import EvidenceDetailPage from './components/police/EvidenceDetailPage';
+import { AlertsPage } from './components/police/AlertsPage';
 
 const UserProfileModal = ({ 
   user, 
@@ -30,6 +32,7 @@ const UserProfileModal = ({
   onSave: (u: User) => void;
 }) => {
   const [formData, setFormData] = useState<User>(user);
+  const [isUploadingPfp, setIsUploadingPfp] = useState(false);
   const isAdmin = currentUser.role === UserRole.ADMIN;
   const isSelf = currentUser.id === user.id;
 
@@ -40,11 +43,32 @@ const UserProfileModal = ({
 
   if (!isOpen) return null;
 
-  const handlePfpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-        // Create preview object URL for profile picture
-        const url = URL.createObjectURL(e.target.files[0]);
-        setFormData({ ...formData, profileImage: url });
+  // Uploads the real file to the backend (stored in MinIO) and uses the
+  // returned pre-signed URL. The previous `URL.createObjectURL(...)` blob:
+  // URL only existed in this browser tab and broke on refresh or for anyone
+  // else viewing the profile.
+  const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPfp(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+      const form = new FormData();
+      form.append('avatar', file);
+      const res = await fetch(`${apiBase}/api/users/${user.id}/avatar`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.message || 'Failed to upload profile picture.');
+        return;
+      }
+      const saved = await res.json();
+      setFormData({ ...formData, profileImage: saved.profileImageUri || saved.profile_image_url });
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      alert('Failed to upload profile picture. Please try again.');
+    } finally {
+      setIsUploadingPfp(false);
     }
   };
 
@@ -75,9 +99,9 @@ const UserProfileModal = ({
                     </div>
                     {/* Only allow PFP upload if it's the user themselves or Admin */}
                     <div className="relative">
-                        <input type="file" id="pfp-upload" className="hidden" accept="image/*" onChange={handlePfpUpload} />
-                        <label htmlFor="pfp-upload" className="cursor-pointer text-xs flex items-center gap-1 text-navy-700 hover:text-navy-900">
-                            <Upload size={12} /> Change Photo
+                        <input type="file" id="pfp-upload" className="hidden" accept="image/*" onChange={handlePfpUpload} disabled={isUploadingPfp} />
+                        <label htmlFor="pfp-upload" className={`text-xs flex items-center gap-1 text-navy-700 hover:text-navy-900 ${isUploadingPfp ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}>
+                            <Upload size={12} /> {isUploadingPfp ? 'Uploading…' : 'Change Photo'}
                         </label>
                     </div>
                 </div>
@@ -148,7 +172,6 @@ const UserProfileModal = ({
 };
 
 const Main = () => {
-  const { currentUser, logs, isAuthenticated, updateUser, logout } = useStore();
   const { currentUser, logs, cases, isAuthenticated, updateUser, logout } = useStore();
   const [view, setView] = useState('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
@@ -158,16 +181,17 @@ const Main = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
+  // `id` is an evidenceId for evidence/custody destinations and a real
+  // caseId (e.g. "CASE-2026-142") everywhere else. Keeping the two in
+  // separate slots stops a case id from overwriting the selected exhibit.
   const handleNavigate = (destination: string, id?: string) => {
     setView(destination);
-    if (id) setSelectedCaseId(id);
-    if (destination === 'evidence_detail') {
+    if (!id) return;
+    if (destination === 'evidence_detail' || destination === 'custody') {
       setSelectedEvidenceId(id);
-    } else if (destination === 'case_detail') {
+    } else {
       setSelectedCaseId(id);
     }
-    // For custody, we might want to carry an evidenceId too — store in both
-    if (id && destination !== 'evidence_detail') setSelectedCaseId(id);
   };
 
   const handleOpenProfile = () => {
@@ -203,8 +227,32 @@ const Main = () => {
   // Router Switch
   const renderContent = () => {
     if (view === 'case_detail') {
-        const id = selectedCaseId || cases[0]?.caseId || 'FIR 142/2026';
+        const id = selectedCaseId || cases[0]?.caseId;
+        if (!id) {
+            return (
+                <div className="p-12 text-center text-ink-500">
+                    No case selected, and no cases are available yet.
+                </div>
+            );
+        }
         return <CaseDetail caseId={id} onBack={() => setView('cases')} />;
+    }
+
+    if (view === 'evidence_detail') {
+        if (!selectedEvidenceId) {
+            return <div className="p-12 text-center text-ink-500">No evidence item selected.</div>;
+        }
+        return (
+            <EvidenceDetailPage
+                evidenceId={selectedEvidenceId}
+                onNavigate={handleNavigate}
+                onBack={() => setView('evidence_vault')}
+            />
+        );
+    }
+
+    if (view === 'alerts') {
+        return <AlertsPage onNavigate={handleNavigate} />;
     }
 
     if (view === 'cases') {

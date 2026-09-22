@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
-import { AlertOctagon, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertOctagon, AlertTriangle, Info, CheckCircle, Loader2 } from 'lucide-react';
 import { Badge } from '../Common';
 import { Button } from '../Common';
-import { getAlerts } from '../../services/auditService';
+import { getAlerts, updateAlertStatus } from '../../services/auditService';
 import type { IOAlert } from '../../services/auditService';
+import { useStore } from '../../store';
 
 interface NavProps {
   onNavigate: (view: string, id?: string) => void;
@@ -47,9 +48,13 @@ const StatusBadge = ({ status }: { status: IOAlert['status'] }) => {
 const AlertCard = ({
   alert,
   onNavigate,
+  onUpdateStatus,
+  pending,
 }: {
   alert: IOAlert;
   onNavigate: (view: string, id?: string) => void;
+  onUpdateStatus: (alertId: string, status: 'Acknowledged' | 'Resolved') => void;
+  pending: boolean;
 }) => {
   const isCritical = alert.severity === 'critical';
   const isWarning = alert.severity === 'warning';
@@ -90,7 +95,7 @@ const AlertCard = ({
           </div>
 
           <p className="text-xs text-ink-500 mb-1.5">
-            {alert.caseId && <>FIR {alert.caseId}</>}
+            {alert.caseFirNumber && <>FIR {alert.caseFirNumber}</>}
             {alert.evidenceId && (
               <> &nbsp;·&nbsp; Evidence {alert.evidenceId}</>
             )}
@@ -101,7 +106,7 @@ const AlertCard = ({
           </p>
 
           {!isResolved && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
               {alert.evidenceId && (
                 <Button
                   variant="secondary"
@@ -111,12 +116,43 @@ const AlertCard = ({
                   View Evidence
                 </Button>
               )}
+              {alert.caseId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onNavigate('case_detail', alert.caseId)}
+                >
+                  Open Case
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onNavigate('audit_log')}
               >
                 View Audit Trail
+              </Button>
+
+              <span className="w-px h-5 bg-line-300 mx-0.5" />
+
+              {alert.status === 'Open' && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => onUpdateStatus(alert.id, 'Acknowledged')}
+                >
+                  {pending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                  Acknowledge
+                </Button>
+              )}
+              <Button
+                size="sm"
+                disabled={pending}
+                onClick={() => onUpdateStatus(alert.id, 'Resolved')}
+              >
+                {pending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                Resolve
               </Button>
             </div>
           )}
@@ -134,12 +170,16 @@ const AlertSection = ({
   headerClass,
   emptyLabel,
   onNavigate,
+  onUpdateStatus,
+  pendingId,
 }: {
   title: string;
   alerts: IOAlert[];
   headerClass: string;
   emptyLabel: string;
   onNavigate: (view: string, id?: string) => void;
+  onUpdateStatus: (alertId: string, status: 'Acknowledged' | 'Resolved') => void;
+  pendingId: string | null;
 }) => (
   <div className="border border-line-200 rounded-sm overflow-hidden shadow-card">
     <div className={`px-5 py-3 ${headerClass}`}>
@@ -156,7 +196,13 @@ const AlertSection = ({
         </div>
       ) : (
         alerts.map(alert => (
-          <AlertCard key={alert.id} alert={alert} onNavigate={onNavigate} />
+          <AlertCard
+            key={alert.id}
+            alert={alert}
+            onNavigate={onNavigate}
+            onUpdateStatus={onUpdateStatus}
+            pending={pendingId === alert.id}
+          />
         ))
       )}
     </div>
@@ -166,27 +212,67 @@ const AlertSection = ({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const AlertsPage: React.FC<NavProps> = ({ onNavigate }) => {
-  const alerts = useMemo(() => getAlerts(), []);
+  const { currentUser } = useStore();
+  const [alerts, setAlerts] = useState<IOAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const criticalAlerts = useMemo(
-    () => alerts.filter(a => a.severity === 'critical'),
-    [alerts],
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await getAlerts();
+      setAlerts(rows);
+      setError(null);
+    } catch (err: any) {
+      setAlerts([]);
+      setError(err?.message || 'Unable to load alerts.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Persists to the DB, then refreshes so the list reflects the stored state
+  // rather than an optimistic local guess.
+  const handleUpdateStatus = useCallback(
+    async (alertId: string, status: 'Acknowledged' | 'Resolved') => {
+      setPendingId(alertId);
+      try {
+        await updateAlertStatus(alertId, status, {
+          actorId: currentUser?.id,
+          actorRole: currentUser?.role,
+        });
+        setError(null);
+        await load();
+      } catch (err: any) {
+        setError(err?.message || `Unable to mark the alert as ${status}.`);
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [currentUser, load],
   );
-  const warningAlerts = useMemo(
-    () => alerts.filter(a => a.severity === 'warning'),
-    [alerts],
-  );
-  const infoAlerts = useMemo(
-    () => alerts.filter(a => a.severity === 'info'),
-    [alerts],
-  );
-  const resolvedCount = useMemo(
-    () => alerts.filter(a => a.status === 'Resolved').length,
-    [alerts],
-  );
+
+  const criticalAlerts = alerts.filter(a => a.severity === 'critical');
+  const warningAlerts = alerts.filter(a => a.severity === 'warning');
+  const infoAlerts = alerts.filter(a => a.severity === 'info');
+  const resolvedCount = alerts.filter(a => a.status === 'Resolved').length;
   const criticalOpen = criticalAlerts.filter(a => a.status === 'Open').length;
   const warningOpen = warningAlerts.filter(a => a.status === 'Open').length;
   const infoOpen = infoAlerts.filter(a => a.status === 'Open').length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-ink-500">
+        <div className="w-6 h-6 border-2 border-navy-900 border-t-transparent rounded-full animate-spin mr-3" />
+        <span className="text-sm">Loading alerts…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -199,6 +285,13 @@ export const AlertsPage: React.FC<NavProps> = ({ onNavigate }) => {
           System-generated alerts requiring attention
         </p>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 border border-status-urgent/20 bg-status-urgentBg text-status-urgent rounded-sm px-4 py-3">
+          <AlertTriangle size={16} className="shrink-0" />
+          <span className="text-sm font-medium">{error}</span>
+        </div>
+      )}
 
       {/* ── Summary Stats Bar ──────────────────────────────────────────── */}
       <div className="grid grid-cols-4 gap-4">
@@ -231,6 +324,8 @@ export const AlertsPage: React.FC<NavProps> = ({ onNavigate }) => {
         headerClass="bg-status-urgent"
         emptyLabel="No critical alerts — all clear"
         onNavigate={onNavigate}
+        onUpdateStatus={handleUpdateStatus}
+        pendingId={pendingId}
       />
 
       {/* ── Warning ──────────────────────────────────────────────────── */}
@@ -240,6 +335,8 @@ export const AlertsPage: React.FC<NavProps> = ({ onNavigate }) => {
         headerClass="bg-amber-500"
         emptyLabel="No warning alerts"
         onNavigate={onNavigate}
+        onUpdateStatus={handleUpdateStatus}
+        pendingId={pendingId}
       />
 
       {/* ── Information ───────────────────────────────────────────────── */}
@@ -249,6 +346,8 @@ export const AlertsPage: React.FC<NavProps> = ({ onNavigate }) => {
         headerClass="bg-blue-600"
         emptyLabel="No informational alerts"
         onNavigate={onNavigate}
+        onUpdateStatus={handleUpdateStatus}
+        pendingId={pendingId}
       />
     </div>
   );
