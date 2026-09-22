@@ -55,6 +55,7 @@ const mapDbCaseToCase = (row: any): Case => {
     createdBy: row.created_by_name || row.created_by_user_id || row.createdBy || 'Unknown',
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     assignedToForensics: row.forensics_name || row.assigned_forensics_id || row.assignedToForensics || undefined,
+    priority: row.is_priority ?? row.priority ?? false,
   };
 };
 
@@ -288,6 +289,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
         currentCustodian: caseToSave.currentCustodian,
         createdBy: caseToSave.createdBy || currentUser?.id,
         assignedToForensics: caseToSave.assignedToForensics,
+        priority: !!caseToSave.priority,
         actorId: currentUser?.id,
         actorRole: currentUser?.role,
       }),

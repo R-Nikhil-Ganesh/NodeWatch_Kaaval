@@ -148,6 +148,7 @@ const UserProfileModal = ({
 };
 
 const Main = () => {
+  const { currentUser, logs, isAuthenticated, updateUser, logout } = useStore();
   const { currentUser, logs, cases, isAuthenticated, updateUser, logout } = useStore();
   const [view, setView] = useState('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);

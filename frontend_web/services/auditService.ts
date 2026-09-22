@@ -26,6 +26,7 @@ export const getAuditEvents = (filters?: AuditFilters): AuditEvent[] => {
     );
   }
   if (filters.user) events = events.filter(e => e.user.toLowerCase().includes(filters.user!.toLowerCase()));
+  if (filters.action) events = events.filter(e => e.action.toLowerCase().includes(filters.action!.toLowerCase()));
   if (filters.action || filters.actionType) {
     const act = (filters.action || filters.actionType)!.toLowerCase();
     events = events.filter(e => e.action.toLowerCase().includes(act));

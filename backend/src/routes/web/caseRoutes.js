@@ -52,6 +52,7 @@ router.post('/', async (req, res) => {
     const {
       caseId, title, description, status, currentCustodian, createdBy,
       assignedToForensics, location, incidentTimestamp, actorId, actorRole,
+      priority,
     } = req.body || {};
 
     const id = caseId || `CASE-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
@@ -67,8 +68,8 @@ router.post('/', async (req, res) => {
       `INSERT INTO cases
          (case_id, title, description, status, location, incident_timestamp,
           created_by_user_id, current_custodian_id, current_custodian_name,
-          assigned_forensics_id, blockchain_hash, version, is_deleted, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',1,FALSE,NOW(),NOW())
+          assigned_forensics_id, is_priority, blockchain_hash, version, is_deleted, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending',1,FALSE,NOW(),NOW())
        RETURNING *, case_id AS "caseId"`,
       [
         id,
@@ -81,6 +82,7 @@ router.post('/', async (req, res) => {
         custodianId,
         custodianName,
         assignedToForensics || null,
+        !!priority,
       ]
     );
 

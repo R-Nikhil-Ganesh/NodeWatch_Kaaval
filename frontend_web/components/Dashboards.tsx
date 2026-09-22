@@ -3,8 +3,17 @@ import React, { useState } from 'react';
 import { useStore } from '../store';
 import { Case, CaseStatus, EvidenceType, UserRole, Evidence, User, IntegrityStatus } from '../types';
 import { Card, Button, Table, Badge, CaseStatusBadge, Input, RoleBadge, downloadCSV } from './Common';
-import { Plus, Upload, Search, FileText, BarChart2, ShieldAlert, Edit2, Download, ArrowUpDown, ShieldCheck, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Upload, Search, FileText, BarChart2, ShieldAlert, Edit2, Download, ArrowUpDown, ShieldCheck, CheckCircle, XCircle, AlertOctagon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { sortCasesByPriority, getCasePriorityTier, TIER_BADGE_COLOR, TIER_LABEL } from '../utils/casePriority';
+
+// Small badge shown next to a case's title/ID wherever cases are listed —
+// blank for STANDARD cases so ordinary case rows aren't cluttered.
+const CasePriorityBadge = ({ c }: { c: Case }) => {
+    const tier = getCasePriorityTier(c);
+    if (tier === 'STANDARD') return null;
+    return <Badge color={TIER_BADGE_COLOR[tier]}>{TIER_LABEL[tier]}</Badge>;
+};
 
 interface DashboardProps {
     onNavigate: (view: string, id?: string) => void;
@@ -158,7 +167,7 @@ export { PoliceDashboard } from './police/PoliceDashboard';
 // ----------------------------------------------------------------------
 export const ForensicsDashboard = ({ onNavigate }: DashboardProps) => {
     const { cases, evidence, verifyEvidence } = useStore();
-    const activeCases = cases.filter(c => c.status === CaseStatus.UNDER_INVESTIGATION);
+    const activeCases = sortCasesByPriority(cases.filter(c => c.status === CaseStatus.UNDER_INVESTIGATION));
     const pendingVerification = evidence.filter(e => e.integrityStatus === 'PENDING' || e.integrityStatus === 'NOT_CHECKED');
 
     return (
@@ -187,11 +196,12 @@ export const ForensicsDashboard = ({ onNavigate }: DashboardProps) => {
                     )}
                 </Card>
                 <Card title="Active Investigations">
-                     <Table headers={['Case ID', 'Title', 'Action']}>
+                     <Table headers={['Case ID', 'Title', 'Priority', 'Action']}>
                         {activeCases.map(c => (
                             <tr key={c.caseId} className="hover:bg-paper-50 transition-colors">
                                 <td className="px-4 py-3 text-sm font-medium text-navy-900">{c.caseId}</td>
                                 <td className="px-4 py-3 text-sm text-ink-700">{c.title}</td>
+                                <td className="px-4 py-3"><CasePriorityBadge c={c} /></td>
                                 <td className="px-4 py-3">
                                     <Button size="sm" variant="secondary" onClick={() => onNavigate('case_detail', c.caseId)}>Access</Button>
                                 </td>
@@ -272,13 +282,15 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
 
     // Create Case Logic (Moved from Police)
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [newCaseData, setNewCaseData] = useState({ title: '', description: '', officerId: '', forensicsId: '' });
+    const [newCaseData, setNewCaseData] = useState({ title: '', description: '', officerId: '', forensicsId: '', isPriority: false });
 
     const policeUsers = users.filter(u => u.role === UserRole.POLICE);
     const forensicsUsers = users.filter(u => u.role === UserRole.FORENSICS);
 
+    const isCreateCaseValid = newCaseData.title.trim().length > 0 && newCaseData.description.trim().length > 0;
+
     const handleCreateCase = () => {
-        if (!newCaseData.title || !currentUser) return;
+        if (!isCreateCaseValid || !currentUser) return;
         addCase({
             caseId: `CASE-2024-${Math.floor(Math.random() * 1000)}`,
             title: newCaseData.title,
@@ -288,9 +300,10 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
             createdBy: currentUser.id,
             createdAt: new Date().toISOString(),
             assignedToForensics: newCaseData.forensicsId || undefined,
+            priority: newCaseData.isPriority,
         });
         setIsCreateModalOpen(false);
-        setNewCaseData({ title: '', description: '', officerId: '', forensicsId: '' });
+        setNewCaseData({ title: '', description: '', officerId: '', forensicsId: '', isPriority: false });
     };
 
     const totalCases = cases.length;
@@ -322,13 +335,38 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
                             onChange={e => setNewCaseData({...newCaseData, title: e.target.value})}
                         />
                         <div className="mb-4">
-                            <label className="block text-sm font-medium text-ink-700 mb-1">Description</label>
+                            <label className="block text-sm font-medium text-ink-700 mb-1">
+                                Description <span className="text-status-urgent">*</span>
+                            </label>
                             <textarea
                                 className="w-full px-3.5 py-2.5 border border-line-300 rounded-sm bg-white text-ink-900 text-sm outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500 transition-colors"
                                 rows={3}
+                                required
+                                placeholder="What happened, where, and any details relevant to triage (e.g. nature of the offence, victims involved)..."
                                 value={newCaseData.description}
                                 onChange={e => setNewCaseData({...newCaseData, description: e.target.value})}
                             />
+                            <p className="text-xs text-ink-500 mt-1">
+                                Required — also scanned to auto-flag high-priority cases (e.g. murder, rape, POCSO/child abuse, trafficking).
+                            </p>
+                        </div>
+                        <div className="mb-4 flex items-center justify-between p-3 bg-paper-50 border border-line-200 rounded-sm">
+                            <div className="pr-4">
+                                <label className="flex items-center gap-1.5 text-sm font-medium text-navy-900">
+                                    <AlertOctagon size={14} className="text-status-urgent" /> Mark as Highest Priority
+                                </label>
+                                <p className="text-xs text-ink-500 mt-0.5">
+                                    Overrides automatic triage — always shown first to the assigned Police and Forensics officers.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setNewCaseData({ ...newCaseData, isPriority: !newCaseData.isPriority })}
+                                aria-pressed={newCaseData.isPriority}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${newCaseData.isPriority ? 'bg-status-urgent' : 'bg-line-300'}`}
+                            >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newCaseData.isPriority ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </button>
                         </div>
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-ink-700 mb-1">Assign Officer (Custodian)</label>
@@ -358,7 +396,7 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
                         </div>
                         <div className="flex justify-end gap-2">
                             <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                            <Button onClick={handleCreateCase}>Create Case</Button>
+                            <Button onClick={handleCreateCase} disabled={!isCreateCaseValid}>Create Case</Button>
                         </div>
                     </Card>
                 </div>
@@ -435,12 +473,13 @@ export const AdminDashboard = ({ onNavigate }: DashboardProps) => {
                 </Card>
             </div>
 
-             <Card title="All Cases Administration">
-                 <Table headers={['ID', 'Title', 'Status', 'Creator', 'Action']}>
-                    {cases.map(c => (
+             <Card title="All Cases Administration" action={<span className="text-xs text-ink-500">Sorted by priority: Critical → High → Standard</span>}>
+                 <Table headers={['ID', 'Title', 'Priority', 'Status', 'Creator', 'Action']}>
+                    {sortCasesByPriority(cases).map(c => (
                         <tr key={c.caseId} className="hover:bg-paper-50 transition-colors">
                             <td className="px-6 py-4 text-sm font-medium text-navy-900">{c.caseId}</td>
                             <td className="px-6 py-4 text-sm text-ink-700">{c.title}</td>
+                            <td className="px-6 py-4"><CasePriorityBadge c={c} /></td>
                             <td className="px-6 py-4"><CaseStatusBadge status={c.status} /></td>
                             <td className="px-6 py-4 text-sm text-ink-500">{c.createdBy}</td>
                             <td className="px-6 py-4">

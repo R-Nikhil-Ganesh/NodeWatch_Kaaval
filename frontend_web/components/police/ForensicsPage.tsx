@@ -116,6 +116,7 @@ async function fetchEvidenceType(evidenceId: string): Promise<string> {
 
 const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
   const [records, setRecords] = useState<ForensicRecord[]>([]);
+  const [summary, setSummary] = useState<Record<string, number>>({});
   const [summary, setSummary] = useState<any>({});
   const [evidenceTypes, setEvidenceTypes] = useState<Record<string, string>>({});
   const [statusFilter, setStatusFilter] = useState('all');

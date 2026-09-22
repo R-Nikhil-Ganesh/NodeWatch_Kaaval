@@ -54,6 +54,7 @@ export const ChargeSheetView = () => {
 
   // Case Evidence items
   const caseEvidence = useMemo(() => {
+    return evidence.filter(e => e.caseId === selectedCaseId || e.caseId === activeCase?.firNumber);
     const caseRef = (activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId;
     return evidence.filter(e => e.caseId === selectedCaseId || e.caseId === caseRef);
   }, [evidence, selectedCaseId, activeCase]);
@@ -225,6 +226,7 @@ export const ChargeSheetView = () => {
                 </p>
               </div>
               <span className="text-xs font-mono font-semibold text-ink-500">
+                Case: {activeCase?.firNumber || selectedCaseId}
                 Case: {(activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId}
               </span>
             </div>
@@ -433,6 +435,7 @@ export const ChargeSheetView = () => {
 
             <div className="p-6 space-y-4">
               <p className="text-xs text-ink-600">
+                The following 2 items are currently outstanding for <strong>{activeCase?.firNumber || selectedCaseId}</strong>. The public prosecutor requires all laboratory reports to be attached prior to court registry.
                 The following 2 items are currently outstanding for <strong>{(activeCase as any)?.firNumber || (activeCase as any)?.caseId || selectedCaseId}</strong>. The public prosecutor requires all laboratory reports to be attached prior to court registry.
               </p>
 
