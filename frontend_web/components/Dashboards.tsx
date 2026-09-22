@@ -151,40 +151,7 @@ export const AdminUsersView = ({ onEditUser }: { onEditUser?: (user: User) => vo
 // ----------------------------------------------------------------------
 // POLICE DASHBOARD
 // ----------------------------------------------------------------------
-export const PoliceDashboard = ({ onNavigate }: DashboardProps) => {
-    const { cases, currentUser } = useStore();
-    // Police can view cases they created (historical) or are generally open (depending on policy).
-    // Assuming they can see cases assigned to their precinct or created by them.
-    const myCases = cases.filter(c => c.createdBy === currentUser?.id || c.status === CaseStatus.OPEN || c.status === CaseStatus.UNDER_INVESTIGATION);
-
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-navy-900">Police Dashboard</h2>
-            </div>
-
-            <Card title="Available Cases">
-                {myCases.length === 0 ? (
-                    <p className="text-ink-500 text-center py-4">No cases available.</p>
-                ) : (
-                    <Table headers={['Case ID', 'Title', 'Date Created', 'Status', 'Action']}>
-                        {myCases.map(c => (
-                            <tr key={c.caseId} className="hover:bg-paper-50 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-navy-900">{c.caseId}</td>
-                                <td className="px-6 py-4 text-sm text-ink-700">{c.title}</td>
-                                <td className="px-6 py-4 text-sm text-ink-500">{new Date(c.createdAt).toLocaleDateString()}</td>
-                                <td className="px-6 py-4"><CaseStatusBadge status={c.status} /></td>
-                                <td className="px-6 py-4 text-sm font-medium">
-                                    <button onClick={() => onNavigate('case_detail', c.caseId)} className="text-navy-700 hover:text-navy-900">View Details</button>
-                                </td>
-                            </tr>
-                        ))}
-                    </Table>
-                )}
-            </Card>
-        </div>
-    );
-};
+export { PoliceDashboard } from './police/PoliceDashboard';
 
 // ----------------------------------------------------------------------
 // FORENSICS DASHBOARD

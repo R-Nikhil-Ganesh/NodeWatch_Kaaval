@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { StoreProvider, useStore } from './store';
 import { Layout } from './components/Layout';
@@ -13,6 +12,9 @@ import { Upload, X } from 'lucide-react';
 import { ChargeSheetView } from './components/ChargeSheetView';
 import { CertificateManager } from './components/CertificateManager';
 import { LegalApp } from './legal/LegalApp';
+import { PoliceCasesPage } from './components/police/PoliceCasesPage';
+import ForensicsPage from './components/police/ForensicsPage';
+import { AuditLogPage } from './components/police/AuditLogPage';
 
 const UserProfileModal = ({ 
   user, 
@@ -146,9 +148,10 @@ const UserProfileModal = ({
 };
 
 const Main = () => {
-  const { currentUser, logs, isAuthenticated, updateUser, logout } = useStore();
+  const { currentUser, logs, cases, isAuthenticated, updateUser, logout } = useStore();
   const [view, setView] = useState('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | undefined>(undefined);
   
   // Profile Modal State
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -157,6 +160,13 @@ const Main = () => {
   const handleNavigate = (destination: string, id?: string) => {
     setView(destination);
     if (id) setSelectedCaseId(id);
+    if (destination === 'evidence_detail') {
+      setSelectedEvidenceId(id);
+    } else if (destination === 'case_detail') {
+      setSelectedCaseId(id);
+    }
+    // For custody, we might want to carry an evidenceId too — store in both
+    if (id && destination !== 'evidence_detail') setSelectedCaseId(id);
   };
 
   const handleOpenProfile = () => {
@@ -191,12 +201,13 @@ const Main = () => {
 
   // Router Switch
   const renderContent = () => {
-    if (view === 'case_detail' && selectedCaseId) {
-        return <CaseDetail caseId={selectedCaseId} onBack={() => setView('cases')} />;
+    if (view === 'case_detail') {
+        const id = selectedCaseId || cases[0]?.caseId || 'FIR 142/2026';
+        return <CaseDetail caseId={id} onBack={() => setView('cases')} />;
     }
 
     if (view === 'cases') {
-        return <PoliceDashboard onNavigate={handleNavigate} /> // Reuse for general case list view
+        return <PoliceCasesPage onNavigate={handleNavigate} />;
     }
 
     if (view === 'custody') {
@@ -207,8 +218,16 @@ const Main = () => {
         return <EvidenceVault />;
     }
     
-    if (view === 'charge_sheets' && currentUser.role === UserRole.POLICE) {
+    if (view === 'forensics') {
+        return <ForensicsPage onNavigate={handleNavigate} />;
+    }
+
+    if (view === 'charge_sheets') {
         return <ChargeSheetView />;
+    }
+
+    if (view === 'audit_log') {
+        return <AuditLogPage onNavigate={handleNavigate} />;
     }
 
     if (view === 'certificates' && currentUser.role === UserRole.FORENSICS) {
@@ -219,7 +238,7 @@ const Main = () => {
         return <AdminUsersView onEditUser={handleEditUser} />;
     }
 
-    if (view === 'logs' && currentUser.role === UserRole.ADMIN) {
+    if (view === 'logs') {
         return <SystemLogsView />;
     }
     
@@ -238,10 +257,60 @@ const Main = () => {
     }
   };
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  onReset: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("View render error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center max-w-lg mx-auto my-12 bg-white border border-line-300 rounded shadow-card">
+          <div className="w-12 h-12 bg-status-urgentBg text-status-urgent rounded-full flex items-center justify-center mx-auto mb-3">
+            <X size={24} />
+          </div>
+          <h3 className="text-lg font-bold text-navy-900 mb-1">View Rendering Notice</h3>
+          <p className="text-xs text-ink-500 mb-4">{this.state.error?.message || "An unexpected error occurred while rendering this page."}</p>
+          <Button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset();
+            }}
+          >
+            Return to Dashboard
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
   return (
     <>
         <Layout setView={setView} onOpenProfile={handleOpenProfile} currentView={view}>
-            {renderContent()}
+            <ErrorBoundary onReset={() => setView('dashboard')}>
+              {renderContent()}
+            </ErrorBoundary>
         </Layout>
         
         {editingUser && (

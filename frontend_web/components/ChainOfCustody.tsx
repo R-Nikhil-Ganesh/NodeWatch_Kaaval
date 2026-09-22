@@ -38,10 +38,10 @@ export const ChainOfCustodyView = () => {
         const actor = getUserDetails(log.accessedBy);
         
         return (
-            log.action.toLowerCase().includes(q) ||
-            log.details?.toLowerCase().includes(q) ||
+            (log.action || '').toLowerCase().includes(q) ||
+            (log.details || '').toLowerCase().includes(q) ||
             (log.evidenceId && log.evidenceId.toLowerCase().includes(q)) ||
-            actor.name.toLowerCase().includes(q)
+            (actor?.name || '').toLowerCase().includes(q)
         );
     });
     

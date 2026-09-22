@@ -384,30 +384,43 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" onClick={onBack}><ArrowLeft size={16} /> Back</Button>
-                    <div>
-                        <h2 className="text-2xl font-bold text-navy-900">{currentCase.caseId}: {currentCase.title}</h2>
-                        <div className="flex items-center gap-2 mt-1">
+            {/* Compact Case Context Header */}
+            <div className="bg-white border border-line-200 rounded-md p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                    <button
+                        onClick={onBack}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded text-ink-600 hover:text-navy-900 hover:bg-paper-100 border border-line-200 transition-colors shrink-0"
+                    >
+                        <ArrowLeft size={14} /> Back to Cases
+                    </button>
+                    <span className="text-line-300 hidden sm:inline">|</span>
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-navy-900 bg-navy-50 px-2 py-0.5 rounded border border-navy-100">
+                                {currentCase.caseId}
+                            </span>
+                            <h2 className="text-base font-bold text-navy-900 truncate">
+                                {currentCase.title}
+                            </h2>
                             <CaseStatusBadge status={currentCase.status} />
-                            <span className="text-sm text-ink-500">Created by {currentCase.createdBy} on {new Date(currentCase.createdAt).toLocaleDateString()}</span>
                         </div>
+                        <p className="text-[11px] text-ink-500 mt-0.5">
+                            Created by {currentCase.createdBy} · {new Date(currentCase.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
                     </div>
                 </div>
                 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {currentUser.role === UserRole.ADMIN && (
-                        <div className="flex items-center gap-2 bg-paper-100 p-1.5 rounded-sm border border-line-200 mr-2">
-                            <span className="text-[10px] font-bold text-ink-500 uppercase px-2 tracking-wider flex items-center gap-1">
-                                <Shield size={10} /> Admin Actions
+                        <div className="flex items-center gap-2 bg-paper-100 p-1 rounded border border-line-200 mr-1">
+                            <span className="text-[10px] font-bold text-ink-500 uppercase px-1.5 tracking-wider flex items-center gap-1">
+                                <Shield size={10} /> Admin
                             </span>
                             <div className="relative">
                                 <select
                                     value={currentCase.status}
                                     onChange={handleStatusDropdownChange}
-                                    className="appearance-none pl-3 pr-8 py-1.5 text-sm font-medium bg-white border border-line-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-navy-500 focus:border-navy-500 text-navy-900 cursor-pointer"
+                                    className="appearance-none pl-2.5 pr-7 py-1 text-xs font-medium bg-white border border-line-300 rounded focus:outline-none text-navy-900 cursor-pointer"
                                 >
                                     {Object.values(CaseStatus).map((status) => (
                                         <option key={status} value={status}>
@@ -415,30 +428,32 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                                         </option>
                                     ))}
                                 </select>
-                                <ChevronDown size={14} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-ink-300 pointer-events-none" />
+                                <ChevronDown size={13} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-ink-300 pointer-events-none" />
                             </div>
                             {canEditAssignment && (
                                 <Button size="sm" variant="secondary" onClick={() => setAssignModalOpen(true)}>
-                                    <Edit2 size={14} /> Edit Assignment
+                                    <Edit2 size={13} /> Reassign
                                 </Button>
                             )}
                         </div>
                     )}
                     
                     {!hasCustody && currentUser.role === UserRole.POLICE && (
-                         <div className="px-3 py-1.5 bg-status-pendingBg text-status-pending text-xs font-bold rounded-sm border border-status-pending/20 flex items-center gap-1">
-                             <Lock size={12} /> View Only (No Custody)
+                         <div className="px-2.5 py-1 bg-status-pendingBg text-status-pending text-xs font-semibold rounded border border-status-pending/20 flex items-center gap-1">
+                             <Lock size={12} /> View Only
                          </div>
                     )}
 
                     {canTransferCustody && (
-                         <Button variant="secondary" onClick={() => setTransferModalOpen(true)}>
-                            <Send size={16} /> Transfer Custody
+                         <Button variant="secondary" size="sm" onClick={() => setTransferModalOpen(true)}>
+                            <Send size={14} /> Transfer Custody
                         </Button>
                     )}
 
                     {canUpload && (
-                        <Button onClick={() => setUploadModalOpen(true)}><Upload size={16} /> Upload Evidence</Button>
+                        <Button size="sm" onClick={() => setUploadModalOpen(true)}>
+                            <Upload size={14} /> Upload Evidence
+                        </Button>
                     )}
                 </div>
             </div>

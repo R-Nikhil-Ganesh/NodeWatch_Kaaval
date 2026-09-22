@@ -1034,9 +1034,9 @@ export const EvidenceVault = () => {
         
         let isVisible = false;
         if (currentUser?.role === UserRole.ADMIN) isVisible = true;
-        else if (!e.visibility.isRestricted) isVisible = true;
-        else {
-             const { allowedRoles, allowedDesignations, allowedUserIds } = e.visibility;
+        else if (!e.visibility?.isRestricted) isVisible = true;
+        else if (e.visibility) {
+             const { allowedRoles = [], allowedDesignations = [], allowedUserIds = [] } = e.visibility;
              if (currentUser) {
                  if (allowedRoles.includes(currentUser.role)) isVisible = true;
                  else if (allowedDesignations.includes(currentUser.designation)) isVisible = true;
@@ -1046,10 +1046,10 @@ export const EvidenceVault = () => {
         if (!isVisible) return false;
 
         const q = searchQuery.toLowerCase();
-        return e.fileName.toLowerCase().includes(q) || 
-               e.evidenceId.toLowerCase().includes(q) || 
+        return (e.fileName || '').toLowerCase().includes(q) || 
+               (e.evidenceId || '').toLowerCase().includes(q) || 
                e.notes?.toLowerCase().includes(q) ||
-               e.type.toLowerCase().includes(q);
+               (e.type || '').toLowerCase().includes(q);
     });
 
     const sortedEvidence = [...filteredEvidence].sort((a, b) => {

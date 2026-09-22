@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Case, Evidence, AccessLog, User, UserRole, LegalDocument, CaseStatus, IntegrityStatus, EvidenceVisibility, EvidenceClassification } from './types';
-import { INITIAL_CASES, INITIAL_EVIDENCE, INITIAL_LOGS } from './constants';
+import { INITIAL_CASES, INITIAL_EVIDENCE, INITIAL_LOGS, INITIAL_DOCUMENTS, MOCK_USERS } from './constants';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -141,8 +141,8 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
   const [cases, setCases] = useState<Case[]>(INITIAL_CASES);
   const [evidence, setEvidence] = useState<Evidence[]>(INITIAL_EVIDENCE);
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
-  const [documents, setDocuments] = useState<LegalDocument[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [documents, setDocuments] = useState<LegalDocument[]>(INITIAL_DOCUMENTS);
+  const [users, setUsers] = useState<User[]>(MOCK_USERS);
 
   const loadData = async () => {
     try {

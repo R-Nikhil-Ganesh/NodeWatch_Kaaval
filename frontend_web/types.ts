@@ -57,6 +57,7 @@ export interface AccessLog {
   action: 'VIEW' | 'DOWNLOAD' | 'VERIFY' | 'UPLOAD' | 'TRANSFER' | 'APPROVE' | 'FREEZE' | 'CREATE_CASE' | 'LOGIN' | 'LOGOUT' | 'UPDATE_USER' | 'COMPROMISED' | 'VISIBILITY_UPDATE' | 'CREATE_DOC' | 'TRANSFER_CUSTODY' | 'ISSUE_CERT' | 'REASSIGN_CASE';
   timestamp: string;
   details?: string;
+  ipAddress?: string;
 }
 
 export interface EvidenceVisibility {
