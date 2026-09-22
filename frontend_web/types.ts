@@ -126,6 +126,7 @@ export interface Case {
   createdBy: string; // User ID
   createdAt: string;
   assignedToForensics?: string; // User ID
+  priority?: boolean; // Admin-flagged highest-priority case (see utils/casePriority.ts)
 }
 
 // TN Specific Ranks for Dropdowns

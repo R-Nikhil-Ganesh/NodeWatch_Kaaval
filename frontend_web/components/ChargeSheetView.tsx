@@ -38,9 +38,14 @@ export const ChargeSheetView = () => {
 
         addDocument(newDoc);
 
-        // Filing the chargesheet submits the case to court so it appears in the Legal Portal
-        const currentCase = cases.find(c => c.caseId === selectedCaseId);
-        if (currentCase && currentCase.status !== CaseStatus.SUBMITTED_TO_COURT) {
+        // Filing the chargesheet IS the procedural act of sending a case to
+        // court — without this, the case status never leaves
+        // UNDER_INVESTIGATION/OPEN, the backend never stamps a court_stage,
+        // and the case silently never appears in the Legal (Court
+        // Management) portal even though the chargesheet document exists.
+        // Mirrors the same submit handler in CaseViews.tsx's CaseDetail.
+        const targetCase = cases.find(c => c.caseId === selectedCaseId);
+        if (targetCase && targetCase.status !== CaseStatus.SUBMITTED_TO_COURT) {
             updateCaseStatus(selectedCaseId, CaseStatus.SUBMITTED_TO_COURT);
         }
 
