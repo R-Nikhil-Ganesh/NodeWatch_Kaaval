@@ -18,7 +18,7 @@ type AuthScreenProp = StackNavigationProp<RootStackParamList, 'Auth'>;
 export default function AuthScreen({ navigation }: { navigation: AuthScreenProp }) {
   const { setUser } = useApp();
 
-  // Login phases: 1 = credentials, 2 = biometric (admin), 3 = OTP
+  // Login phases: 1 = credentials, 2 = biometric, 3 = OTP
   const [phase, setPhase]     = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
 
@@ -120,12 +120,8 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
       setTempUser(mappedUser);
       setTempToken(token);
 
-      // Admins require biometrics next; others go straight to OTP
-      if (roleStr.toUpperCase() === 'ADMIN') {
-        setPhase(2);
-      } else {
-        setPhase(3);
-      }
+      // All roles require biometrics, then OTP
+      setPhase(2);
     } catch (e: any) {
       // Network unavailable — check if we have a cached offline profile
       const storedToken = await SecureStore.getItemAsync(JWT_STORE_KEY).catch(() => null);
@@ -165,7 +161,7 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
     }
   };
 
-  // ─── PHASE 2: BIOMETRICS (ADMIN ONLY) ────────────────────────────────────
+  // ─── PHASE 2: BIOMETRICS (ALL ROLES) ─────────────────────────────────────
   const handleBiometricCheck = async () => {
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -175,7 +171,7 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
         return;
       }
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate Admin Access',
+        promptMessage: 'Authenticate Access',
         fallbackLabel: 'Use Passcode',
       });
       if (result.success) {
@@ -239,7 +235,7 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
     <View style={{ alignItems: 'center', paddingVertical: 20 }}>
       <Ionicons name="finger-print" size={80} color={COLORS.primary} />
       <Text style={[styles.label, { marginTop: 20, textAlign: 'center' }]}>
-        Admin Access Requires Biometric Verification
+        Biometric Verification Required
       </Text>
       <TouchableOpacity style={styles.btnMain} onPress={handleBiometricCheck}>
         <Text style={styles.btnText}>Scan Fingerprint / Face</Text>
