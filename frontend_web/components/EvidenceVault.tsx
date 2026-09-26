@@ -13,7 +13,9 @@ import {
     CheckSquare, Square, Music, Sparkles 
 } from 'lucide-react';
 
-const AccessControlModal = ({ 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+const AccessControlModal = ({
     evidence, 
     onClose, 
     onSave 
@@ -966,6 +968,7 @@ export const EvidenceVault = () => {
     const [selectedCaseId, setSelectedCaseId] = useState<string>('');
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [viewingEvidence, setViewingEvidence] = useState<Evidence | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [classDetailEvidence, setClassDetailEvidence] = useState<Evidence | null>(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [verificationComplete, setVerificationComplete] = useState(false);
@@ -1026,6 +1029,15 @@ export const EvidenceVault = () => {
         setIsVerifying(true);
         setVerificationComplete(false);
         setVerifyResult(null);
+        setPreviewUrl(null);
+
+        // The presigned URL on the list-fetched `ev.fileUrl` expires (15 min
+        // default) and may already be stale by the time it's opened, so mint
+        // a fresh one rather than trusting whatever was cached at list-load time.
+        fetch(`${API_BASE}/api/evidence/${encodeURIComponent(ev.evidenceId)}/file-url`)
+            .then(r => (r.ok ? r.json() : null))
+            .then(data => setPreviewUrl(data?.uri || ev.fileUrl || null))
+            .catch(() => setPreviewUrl(ev.fileUrl || null));
 
         // Real server-side hash comparison against the ledger-anchored value —
         // this previously ran a 1.5s timer and then always rendered "Matches"
@@ -1044,6 +1056,7 @@ export const EvidenceVault = () => {
 
     const handleCloseModal = () => {
         setViewingEvidence(null);
+        setPreviewUrl(null);
         setIsVerifying(false);
         setVerificationComplete(false);
         setVerifyResult(null);
@@ -1084,17 +1097,28 @@ export const EvidenceVault = () => {
         const isPdf = ev.type === EvidenceType.PDF || (ev.fileName && /\.pdf$/i.test(ev.fileName));
 
         if (ev.fileUrl) {
+            // The list-fetched `ev.fileUrl` is a presigned URL that expires (15 min
+            // default) and can already be stale by the time this opens, so the
+            // click handler mints a fresh one into `previewUrl`. Wait for it rather
+            // than briefly rendering against a URL that may already be expired.
+            if (!previewUrl) {
+                return (
+                    <div className="w-full h-64 flex items-center justify-center border border-line-200 rounded-sm bg-paper-50">
+                        <Loader2 className="w-8 h-8 text-navy-400 animate-spin" />
+                    </div>
+                );
+            }
             if (isImage) {
                 return (
                     <div className="w-full max-h-[420px] bg-navy-950/40 rounded-sm flex items-center justify-center overflow-hidden p-2 border border-line-200">
-                        <img src={ev.fileUrl} alt={ev.fileName} className="max-h-[400px] max-w-full object-contain rounded-sm" />
+                        <img src={previewUrl} alt={ev.fileName} className="max-h-[400px] max-w-full object-contain rounded-sm" />
                     </div>
                 );
             }
             if (isVideo) {
                 return (
                     <div className="w-full max-h-[420px] bg-navy-950/40 rounded-sm flex items-center justify-center overflow-hidden p-2 border border-line-200">
-                        <video src={ev.fileUrl} controls className="max-h-[400px] max-w-full rounded-sm" />
+                        <video src={previewUrl} controls className="max-h-[400px] max-w-full rounded-sm" />
                     </div>
                 );
             }
@@ -1103,8 +1127,17 @@ export const EvidenceVault = () => {
                     <div className="w-full p-6 bg-paper-100 rounded-sm flex flex-col items-center justify-center border border-line-200">
                         <Music className="w-12 h-12 text-navy-500 mb-3" />
                         <p className="font-bold text-sm text-navy-900 mb-2">{ev.fileName}</p>
-                        <audio src={ev.fileUrl} controls className="w-full max-w-md" />
+                        <audio src={previewUrl} controls className="w-full max-w-md" />
                     </div>
+                );
+            }
+            if (isPdf) {
+                return (
+                    <iframe
+                        src={previewUrl}
+                        title={ev.fileName}
+                        className="w-full h-[420px] rounded-sm border border-line-200 bg-paper-50"
+                    />
                 );
             }
         }
@@ -1130,6 +1163,55 @@ export const EvidenceVault = () => {
                         </a>
                     )}
                 </div>
+            </div>
+        );
+    };
+
+    // Small preview shown on each grid card — the actual image, the first
+    // video frame, or a scaled-down first PDF page, rather than just an icon.
+    // Uses the list-fetched `fileUrl` (not a freshly-minted one): fine for a
+    // thumbnail glanced at right after the list loads, and avoids firing one
+    // presigned-URL request per card.
+    const renderThumbnail = (ev: Evidence) => {
+        const isImage = ev.type === EvidenceType.IMAGE || (ev.fileName && /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(ev.fileName));
+        const isVideo = ev.type === EvidenceType.VIDEO || (ev.fileName && /\.(mp4|webm|mov|mkv)$/i.test(ev.fileName));
+        const isPdf = ev.type === EvidenceType.PDF || (ev.fileName && /\.pdf$/i.test(ev.fileName));
+        const isAudio = ev.type === EvidenceType.AUDIO || (ev.fileName && /\.(mp3|wav|ogg|m4a|aac)$/i.test(ev.fileName));
+
+        if (ev.fileUrl && isImage) {
+            return (
+                <div className="w-full h-24 rounded-sm border border-line-200 bg-paper-100 overflow-hidden">
+                    <img src={ev.fileUrl} alt={ev.fileName} className="w-full h-full object-cover" />
+                </div>
+            );
+        }
+        if (ev.fileUrl && isVideo) {
+            return (
+                <div className="w-full h-24 rounded-sm border border-line-200 bg-navy-950 overflow-hidden">
+                    <video src={ev.fileUrl} muted preload="metadata" className="w-full h-full object-cover pointer-events-none" />
+                </div>
+            );
+        }
+        if (ev.fileUrl && isPdf) {
+            // No page-thumbnail API on hand — render the real first page at a
+            // larger size, then scale it down and clip it like a thumbnail.
+            return (
+                <div className="w-full h-24 rounded-sm border border-line-200 bg-white overflow-hidden">
+                    <iframe
+                        src={`${ev.fileUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                        title={ev.fileName}
+                        tabIndex={-1}
+                        className="pointer-events-none origin-top-left"
+                        style={{ width: '400%', height: '400%', transform: 'scale(0.25)' }}
+                    />
+                </div>
+            );
+        }
+
+        const Icon = isAudio ? Music : Box;
+        return (
+            <div className="w-full h-24 rounded-sm border border-line-200 bg-paper-100 flex items-center justify-center">
+                <Icon className="w-8 h-8 text-ink-300" />
             </div>
         );
     };
@@ -1200,6 +1282,7 @@ export const EvidenceVault = () => {
                     {sortedEvidence.map(ev => (
                         <div key={ev.evidenceId} className="relative group">
                             <Card className="h-full flex flex-col transition-shadow hover:shadow-md">
+                                <div className="mb-4">{renderThumbnail(ev)}</div>
                                 <div className="flex items-start justify-between mb-4">
                                     <div>
                                         <h3 className="text-sm font-bold text-navy-900 flex items-center gap-2"><ImageIcon size={14}/> <span className="truncate max-w-[150px]" title={ev.fileName}>{ev.fileName}</span></h3>

@@ -48,8 +48,8 @@ export const CaseSidebar = ({ courtCase }: { courtCase: CourtCase }) => {
       </nav>
 
       <div className="mt-auto p-5 border-t border-line-200 text-xs text-ink-500 space-y-1.5">
-        <p><span className="font-medium text-ink-700">Court:</span> {courtCase.court}</p>
-        <p><span className="font-medium text-ink-700">Custodian:</span> {courtCase.currentCustodian}</p>
+        <p><span className="font-medium text-ink-700">Court:</span> {courtCase.court || '—'}</p>
+        <p><span className="font-medium text-ink-700">Custodian:</span> {courtCase.currentCustodian || '—'}</p>
       </div>
     </aside>
   );

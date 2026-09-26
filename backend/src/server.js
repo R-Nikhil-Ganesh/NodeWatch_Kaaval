@@ -26,6 +26,7 @@ import investigationRoutes from './routes/web/investigationRoutes.js';
 
 // Legal Route Imports
 import legalCaseRoutes from './routes/legal/caseRoutes.js';
+import legalSearchRoutes from './routes/legal/searchRoutes.js';
 
 const app = express();
 
@@ -94,6 +95,7 @@ app.use('/api/legal/evidence', webEvidenceRoutes);
 app.use('/api/legal/evidence', webSection63Routes);
 app.use('/api/legal/documents', webDocumentRoutes);
 app.use('/api/legal/audit/logs', webAuditRoutes);
+app.use('/api/legal/search', legalSearchRoutes);
 
 // ---------------------------------------------------------------------------
 // 4. COMPATIBILITY ALIASES (Direct /api/* fallback for existing frontend)

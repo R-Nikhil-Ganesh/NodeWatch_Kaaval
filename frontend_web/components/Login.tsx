@@ -290,7 +290,7 @@ export const Login = () => {
             </Card>
 
             {/* Hint Box — click a box to auto-fill its credentials */}
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-ink-500 max-w-2xl text-center opacity-60 hover:opacity-100 transition-opacity">
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4 text-xs text-ink-500 max-w-3xl text-center opacity-60 hover:opacity-100 transition-opacity">
                 <button
                     type="button"
                     onClick={() => fillDemoCredentials('rajendran.k@tnpolice.gov.in', 'password123')}
@@ -318,6 +318,13 @@ export const Login = () => {
                     className="p-2 border border-line-200 rounded-sm hover:bg-white transition-colors cursor-pointer"
                 >
                     <strong>Legal</strong><br/>vijay.sundaram@tngovt.in<br/>password123
+                </button>
+                <button
+                    type="button"
+                    onClick={() => fillDemoCredentials('ganesh.p@tnjudiciary.gov.in', 'password123')}
+                    className="p-2 border border-line-200 rounded-sm hover:bg-white transition-colors cursor-pointer"
+                >
+                    <strong>Court Registrar</strong><br/>ganesh.p@tnjudiciary.gov.in<br/>password123
                 </button>
             </div>
         </div>

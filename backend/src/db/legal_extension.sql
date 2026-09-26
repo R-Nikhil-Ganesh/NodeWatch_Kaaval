@@ -82,6 +82,12 @@ ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS file_format      VARCHAR(10)
 ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS file_size_kb     INTEGER;
 ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS related_sections JSONB NOT NULL DEFAULT '[]';
 
+-- content_text holds best-effort extracted plain text (PDF/DOCX/TXT) so the
+-- global search's full-text index can match inside a filing, not just its
+-- title/description. NULL for formats we don't extract (images, .doc, etc.)
+-- or when extraction fails — the filing itself is never blocked on it.
+ALTER TABLE case_documents ADD COLUMN IF NOT EXISTS content_text     TEXT;
+
 -- ----- CASE CUSTODY TRANSFERS: admin-forced override tracking -----
 -- Records the justification when an ADMIN forces a custody transfer
 -- without the current custodian's participation (see caseRoutes.js).

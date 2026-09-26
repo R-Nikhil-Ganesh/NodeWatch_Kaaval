@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CalendarCheck, CalendarClock, CalendarPlus, CheckCircle2, Gavel, Loader2, User2, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, CalendarClock, CalendarPlus, CheckCircle2, Gavel, Loader2, Pencil, Plus, User2, XCircle } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
-import { Badge, Card, DescriptionRow, EmptyState, Select } from '../../components/ui/Primitives';
+import { Badge, Button, Card, DescriptionRow, EmptyState, Select } from '../../components/ui/Primitives';
 import { CaseStageStepper } from '../../components/case/CaseStageStepper';
+import { EditCaseModal } from '../../components/case/EditCaseModal';
+import { HearingFormModal } from '../../components/case/HearingFormModal';
 import { fetchHearings } from '../../services/api';
 import { useAsync } from '../../hooks/useAsync';
-import { CASE_STAGE_LABEL, CaseStage } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { CASE_STAGE_LABEL, CaseStage, LegalDesignation } from '../../types';
 import { formatDate, formatDateTime } from '../../utils/format';
 import { outcomeLabel, outcomeTone, stageTone } from '../../utils/caseMeta';
 
@@ -16,9 +19,17 @@ const AttendanceChip = ({ present, label }: { present: boolean; label: string })
 );
 
 export const CaseHomePage = () => {
-  const { courtCase } = useCaseContext();
-  const { data: hearings, loading, error } = useAsync(() => fetchHearings(courtCase.caseId), [courtCase.caseId]);
+  const { courtCase, refresh } = useCaseContext();
+  const { user } = useAuth();
+  const isRegistrar = user?.designation === LegalDesignation.REGISTRAR;
+  const [reloadKey, setReloadKey] = useState(0);
+  const { data: hearings, loading, error } = useAsync(() => fetchHearings(courtCase.caseId), [courtCase.caseId, reloadKey]);
   const [selectedHearingId, setSelectedHearingId] = useState('');
+  const [editCaseOpen, setEditCaseOpen] = useState(false);
+  const [hearingModalOpen, setHearingModalOpen] = useState(false);
+  const [editingHearingId, setEditingHearingId] = useState<string | null>(null);
+
+  const reloadHearings = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     if (hearings && hearings.length) {
@@ -39,8 +50,41 @@ export const CaseHomePage = () => {
         <div className="flex items-center gap-2">
           {isDisposed && <Badge tone={outcomeTone(courtCase.outcome)}>{outcomeLabel(courtCase.outcome)}</Badge>}
           <Badge tone={stageTone(courtCase.stage)}>{CASE_STAGE_LABEL[courtCase.stage]}</Badge>
+          {isRegistrar && (
+            <Button size="sm" variant="secondary" onClick={() => setEditCaseOpen(true)}>
+              <Pencil size={13} /> Edit Case
+            </Button>
+          )}
         </div>
       </div>
+
+      {isRegistrar && (
+        <EditCaseModal
+          open={editCaseOpen}
+          onClose={() => setEditCaseOpen(false)}
+          courtCase={courtCase}
+          onUpdated={refresh}
+        />
+      )}
+
+      {!courtCase.court && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-sm border border-status-pending/30 bg-status-pendingBg text-status-pending">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium">Court details not yet recorded</p>
+            <p className="text-status-pending/80 mt-0.5">
+              This case was onboarded automatically when its chargesheet was filed, so the court, presiding judge and
+              counsel haven't been assigned yet.
+              {!isRegistrar && ' A Registrar needs to fill these in.'}
+            </p>
+          </div>
+          {isRegistrar && (
+            <Button size="sm" variant="secondary" onClick={() => setEditCaseOpen(true)}>
+              Assign Court Details
+            </Button>
+          )}
+        </div>
+      )}
 
       <Card title="Case Progress">
         <CaseStageStepper currentStage={courtCase.stage} />
@@ -129,7 +173,14 @@ export const CaseHomePage = () => {
             </div>
           </Card>
 
-          <Card title="Hearing History">
+          <Card
+            title="Hearing History"
+            action={isRegistrar && (
+              <Button size="sm" variant="ghost" onClick={() => { setEditingHearingId(null); setHearingModalOpen(true); }}>
+                <Plus size={13} /> Add Hearing
+              </Button>
+            )}
+          >
             {loading ? (
               <div className="flex items-center justify-center py-8 text-ink-500 gap-2 text-sm">
                 <Loader2 size={16} className="animate-spin" /> Loading hearing history…
@@ -152,7 +203,18 @@ export const CaseHomePage = () => {
                   <div className="mt-4 pt-4 border-t border-line-200 space-y-3">
                     <div className="flex items-center justify-between">
                       <Badge tone="saffron">{selectedHearing.purpose}</Badge>
-                      <p className="text-xs text-ink-500">{formatDateTime(selectedHearing.date)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-ink-500">{formatDateTime(selectedHearing.date)}</p>
+                        {isRegistrar && (
+                          <button
+                            onClick={() => { setEditingHearingId(selectedHearing.hearingId); setHearingModalOpen(true); }}
+                            className="text-navy-700 hover:text-navy-900"
+                            aria-label="Edit hearing"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-ink-900 leading-relaxed">{selectedHearing.statement}</p>
                     <div className="flex flex-wrap gap-3 pt-1">
@@ -173,6 +235,17 @@ export const CaseHomePage = () => {
           </Card>
         </div>
       </div>
+
+      {isRegistrar && (
+        <HearingFormModal
+          open={hearingModalOpen}
+          onClose={() => setHearingModalOpen(false)}
+          caseId={courtCase.caseId}
+          defaultCourt={courtCase.court}
+          editingHearing={(hearings || []).find((h) => h.hearingId === editingHearingId) ?? null}
+          onSaved={() => { reloadHearings(); refresh(); }}
+        />
+      )}
     </div>
   );
 };

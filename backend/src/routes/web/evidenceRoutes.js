@@ -384,6 +384,29 @@ router.post('/upload', upload.fields([{ name: 'file', maxCount: 1 }, { name: 'li
   }
 });
 
+// Presigned URLs handed out by GET '/' go stale (15 min default) if the list
+// was fetched a while before the user actually opens the viewer. This mints
+// a fresh one on demand right before the file is displayed.
+router.get('/:id/file-url', async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT file_url FROM evidence WHERE evidence_id = $1 AND is_deleted = FALSE`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'Evidence not found' });
+
+    const fileUrl = rows[0].file_url || '';
+    if (!fileUrl.startsWith('minio://')) {
+      return res.json({ uri: fileUrl || null });
+    }
+    const key = fileUrl.replace('minio://', '');
+    const uri = await storageService.getPresignedUrl(key);
+    res.json({ uri });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 router.patch('/:id/visibility', async (req, res) => {
   try {
     const { id } = req.params;

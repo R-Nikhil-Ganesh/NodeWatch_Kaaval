@@ -56,6 +56,37 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+// Same auth/error handling as request(), but for multipart bodies (file
+// uploads) — no Content-Type header is set so the browser can add the
+// multipart boundary itself, which JSON.stringify-based request() prevents.
+async function requestMultipart<T>(path: string, formData: FormData): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: {
+        ...(localStorage.getItem(TOKEN_KEY) ? { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}` } : {}),
+      },
+      body: formData,
+    });
+  } catch {
+    throw new ApiError('Unable to reach the server. Please check your connection and try again.', 0);
+  }
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body = await response.json();
+      if (body?.message) message = body.message;
+    } catch {
+      /* non-JSON error body — keep default message */
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -237,6 +268,59 @@ export async function recordCaseView(caseId: string, actorId: string, actorRole:
 }
 
 // ---------------------------------------------------------------------------
+// Case registration / editing — Court Registrar only. The backend enforces
+// this via requireRegistrar; these calls surface a 403 ApiError to anyone else.
+// ---------------------------------------------------------------------------
+
+export interface NewCasePayload {
+  title: string;
+  cnrNumber: string;
+  description?: string;
+  firNumber?: string;
+  firDate?: string;
+  policeStation?: string;
+  district?: string;
+  state?: string;
+  caseType?: CaseType;
+  sections?: string[];
+  court?: string;
+  presidingJudge?: string;
+  publicProsecutor?: string;
+  defenseCounsel?: string;
+  investigatingOfficer?: string;
+  investigatingOfficerDesignation?: string;
+  parties?: CaseParty[];
+}
+
+export async function createCaseRequest(payload: NewCasePayload): Promise<CourtCase> {
+  const row = await request<any>('/api/legal/cases', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return mapCase(row);
+}
+
+export interface CaseUpdatePayload {
+  stage?: CaseStage;
+  outcome?: CaseOutcome;
+  court?: string;
+  presidingJudge?: string;
+  publicProsecutor?: string;
+  defenseCounsel?: string;
+  investigatingOfficer?: string;
+  investigatingOfficerDesignation?: string;
+  description?: string;
+}
+
+export async function updateCaseRequest(caseId: string, payload: CaseUpdatePayload): Promise<CourtCase> {
+  const row = await request<any>(`/api/legal/cases/${encodeURIComponent(caseId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return mapCase(row);
+}
+
+// ---------------------------------------------------------------------------
 // Hearings
 // ---------------------------------------------------------------------------
 
@@ -261,6 +345,22 @@ export async function fetchHearings(caseId: string): Promise<Hearing[]> {
   return rows.map(mapHearing);
 }
 
+export type HearingPayload = Omit<Hearing, 'hearingId' | 'caseId'>;
+
+export async function createHearingRequest(caseId: string, payload: HearingPayload): Promise<void> {
+  await request(`/api/legal/cases/${encodeURIComponent(caseId)}/hearings`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateHearingRequest(caseId: string, hearingId: string, payload: HearingPayload): Promise<void> {
+  await request(`/api/legal/cases/${encodeURIComponent(caseId)}/hearings/${encodeURIComponent(hearingId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Case Files (documents)
 // ---------------------------------------------------------------------------
@@ -282,12 +382,41 @@ const mapCaseFile = (row: any): CaseFile => {
     linkedEvidenceIds: row.linked_evidence_ids || [],
     custodyTrail: singleCustodyEvent('Filed in Court', row.created_at, uploadedBy, uploadedByRole, 'Court Registry', 'Court Registry'),
     summary: row.description || '',
+    fileUrl: row.uri || undefined,
   };
 };
 
 export async function fetchCaseFiles(caseId: string): Promise<CaseFile[]> {
   const rows = await request<any[]>(`/api/legal/documents?caseId=${encodeURIComponent(caseId)}`);
   return rows.map(mapCaseFile);
+}
+
+export async function uploadCaseFileRequest(
+  caseId: string,
+  file: File,
+  metadata: { title?: string; docTypeLabel?: CaseFileType; description?: string; relatedSections?: string[] }
+): Promise<CaseFile> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('caseId', caseId);
+  if (metadata.title) form.append('title', metadata.title);
+  if (metadata.docTypeLabel) form.append('docTypeLabel', metadata.docTypeLabel);
+  if (metadata.description) form.append('description', metadata.description);
+  if (metadata.relatedSections) form.append('relatedSections', JSON.stringify(metadata.relatedSections));
+
+  const row = await requestMultipart<any>('/api/legal/documents/upload', form);
+  return mapCaseFile(row);
+}
+
+export async function updateCaseFileRequest(
+  fileId: string,
+  payload: { title?: string; docTypeLabel?: CaseFileType; description?: string; relatedSections?: string[] }
+): Promise<CaseFile> {
+  const row = await request<any>(`/api/legal/documents/${encodeURIComponent(fileId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return mapCaseFile(row);
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +481,7 @@ const mapEvidence = (row: any, realTrail: CustodyEvent[] | null): EvidenceItem =
     section63CertificateId: row.section63Certificate ?? undefined,
     fileSizeMb: fileSizeBytes ? Number((fileSizeBytes / (1024 * 1024)).toFixed(1)) : 0,
     custodyTrail: trail,
+    previewUrl: row.uri || undefined,
   };
 };
 
@@ -371,6 +501,7 @@ const AUDIT_ACTION_MAP: Record<string, AuditAction> = {
   CREATE_CASE: 'CASE_CREATED',
   CASE_VIEWED: 'CASE_VIEWED',
   CREATE_DOC: 'FILE_UPLOADED',
+  UPDATE_DOC: 'FILE_UPLOADED',
   UPLOAD: 'EVIDENCE_UPLOADED',
   APPROVE: 'EVIDENCE_VERIFIED',
   ISSUE_CERT: 'EVIDENCE_VERIFIED',
@@ -397,4 +528,25 @@ const mapAuditLog = (row: any): AuditLogEntry => ({
 export async function fetchAuditLogs(caseId: string): Promise<AuditLogEntry[]> {
   const rows = await request<any[]>(`/api/legal/audit/logs?caseId=${encodeURIComponent(caseId)}`);
   return rows.map(mapAuditLog);
+}
+
+// ---------------------------------------------------------------------------
+// Search — natural-language query across cases, filed documents and evidence.
+// Backed by Postgres full-text search (websearch_to_tsquery), not a semantic
+// model — see backend/src/routes/legal/searchRoutes.js for why.
+// ---------------------------------------------------------------------------
+
+export interface SearchResult {
+  entityType: 'case' | 'document' | 'evidence';
+  id: string;
+  caseId: string;
+  title: string;
+  subtitle: string;
+  snippet: string;
+  rank: number;
+}
+
+export async function searchRequest(q: string): Promise<SearchResult[]> {
+  if (q.trim().length < 2) return [];
+  return request<SearchResult[]>(`/api/legal/search?q=${encodeURIComponent(q)}`);
 }

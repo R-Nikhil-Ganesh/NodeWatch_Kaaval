@@ -7,6 +7,7 @@ import { initials, formatDateTime } from '../../utils/format';
 import { TricolorStrip } from './TricolorStrip';
 import { UtilityBar } from './UtilityBar';
 import { Emblem } from './Emblem';
+import { GlobalSearch } from './GlobalSearch';
 
 const LAST_LOGIN = '2026-08-31T18:42:00+05:30';
 
@@ -39,6 +40,10 @@ export const Header = ({ subNav }: { subNav?: ReactNode }) => {
               <p className="font-serif font-bold text-lg leading-tight text-navy-900">Court Management System</p>
             </div>
           </button>
+
+          <div className="hidden lg:block flex-1 max-w-md">
+            <GlobalSearch />
+          </div>
 
           <div className="flex items-center gap-4 ml-auto">
             <div className="hidden md:block text-right text-[11px] text-ink-500 leading-tight border-r border-line-300 pr-4">

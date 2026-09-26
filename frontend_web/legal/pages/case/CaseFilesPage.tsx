@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Download, FileArchive, FileText, Gavel, Loader2, LucideIcon, ScrollText, Stamp } from 'lucide-react';
+import { AlertTriangle, Download, ExternalLink, FileArchive, FileText, Gavel, Loader2, LucideIcon, Pencil, ScrollText, Stamp, Upload } from 'lucide-react';
 import { useCaseContext } from '../../components/layout/CaseLayout';
-import { Badge, Card, Drawer, EmptyState, Select } from '../../components/ui/Primitives';
+import { Badge, Button, Card, Drawer, EmptyState, Select } from '../../components/ui/Primitives';
 import { CustodyTrail } from '../../components/case/CustodyTrail';
+import { EditCaseFileModal } from '../../components/case/EditCaseFileModal';
+import { UploadCaseFileModal } from '../../components/case/UploadCaseFileModal';
 import { fetchCaseFiles } from '../../services/api';
 import { useAsync } from '../../hooks/useAsync';
-import { CaseFile, CaseFileType } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { CaseFile, CaseFileType, LegalDesignation } from '../../types';
 import { formatDate, formatFileSize } from '../../utils/format';
 
 const TYPE_ICON: Record<CaseFileType, LucideIcon> = {
@@ -24,16 +27,38 @@ const TYPE_ICON: Record<CaseFileType, LucideIcon> = {
 
 export const CaseFilesPage = () => {
   const { courtCase } = useCaseContext();
-  const { data: files, loading, error } = useAsync(() => fetchCaseFiles(courtCase.caseId), [courtCase.caseId]);
+  const { user } = useAuth();
+  const isRegistrar = user?.designation === LegalDesignation.REGISTRAR;
+  const { data: fetchedFiles, loading, error } = useAsync(() => fetchCaseFiles(courtCase.caseId), [courtCase.caseId]);
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [selected, setSelected] = useState<CaseFile | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  // Edits/uploads are applied in place so the grid/drawer reflect the change
+  // instantly, without a full refetch of every document in the case.
+  const [overrides, setOverrides] = useState<Record<string, CaseFile>>({});
+  const [additions, setAdditions] = useState<CaseFile[]>([]);
+  const files = fetchedFiles && [...fetchedFiles.map((f) => overrides[f.fileId] || f), ...additions];
 
-  // Case documents in this system are metadata records (no PDF/binary was
-  // ever attached — case_documents.file_url is unset for every row), so
-  // "download" exports the real stored record as text rather than either
-  // pretending to fetch a binary that was never uploaded or showing an
-  // alert that the feature "will be wired up".
+  const handleFileSaved = (updated: CaseFile) => {
+    setOverrides((o) => ({ ...o, [updated.fileId]: updated }));
+    setSelected(updated);
+  };
+
+  const handleFileUploaded = (uploaded: CaseFile) => {
+    setAdditions((a) => [uploaded, ...a]);
+  };
+
+  // Files uploaded through the Registrar's "Upload File" flow have a real
+  // presigned URL (selected.fileUrl) and are downloaded directly. Older
+  // metadata-only records (filed before real uploads existed, or filed by
+  // police/forensics through the legacy JSON-only endpoint) have no attached
+  // binary, so "download" falls back to exporting the stored record as text.
   const handleDownload = (file: CaseFile) => {
+    if (file.fileUrl) {
+      window.open(file.fileUrl, '_blank', 'noopener');
+      return;
+    }
     const lines = [
       `Document: ${file.title}`,
       `Type: ${file.type}`,
@@ -58,6 +83,42 @@ export const CaseFilesPage = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Renders the actual file inline in the drawer whenever one is attached —
+  // no extra click needed. PDFs embed directly; images render as <img>;
+  // other formats (DOCX) can't be previewed in-browser so fall back to a
+  // link, and metadata-only legacy records show neither.
+  const renderPreview = (file: CaseFile) => {
+    if (!file.fileUrl) return null;
+    if (file.fileFormat === 'PDF') {
+      return (
+        <iframe
+          src={file.fileUrl}
+          title={file.title}
+          className="w-full h-[420px] rounded-sm border border-line-200 bg-paper-50"
+        />
+      );
+    }
+    if (file.fileFormat === 'JPEG') {
+      return (
+        <img
+          src={file.fileUrl}
+          alt={file.title}
+          className="w-full max-h-[420px] object-contain rounded-sm border border-line-200 bg-paper-50"
+        />
+      );
+    }
+    return (
+      <a
+        href={file.fileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 py-8 rounded-sm border border-dashed border-line-300 text-sm text-navy-700 hover:border-navy-500 transition-colors"
+      >
+        <ExternalLink size={15} /> Preview unavailable for {file.fileFormat} — open in a new tab
+      </a>
+    );
+  };
+
   const types = Array.from(new Set((files || []).map((f) => f.type)));
   const visible = useMemo(
     () => (typeFilter === 'ALL' ? (files || []) : (files || []).filter((f) => f.type === typeFilter)),
@@ -71,13 +132,29 @@ export const CaseFilesPage = () => {
           <h1 className="text-xl font-bold text-navy-900">Case Files</h1>
           <p className="text-sm text-ink-500 mt-1">Every document filed in this case, from FIR to court orders — each tracked by chain of custody.</p>
         </div>
-        <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-64">
-          <option value="ALL">All Document Types ({(files || []).length})</option>
-          {types.map((t) => (
-            <option key={t} value={t}>{t} ({(files || []).filter((f) => f.type === t).length})</option>
-          ))}
-        </Select>
+        <div className="flex items-center gap-3">
+          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-64">
+            <option value="ALL">All Document Types ({(files || []).length})</option>
+            {types.map((t) => (
+              <option key={t} value={t}>{t} ({(files || []).filter((f) => f.type === t).length})</option>
+            ))}
+          </Select>
+          {isRegistrar && (
+            <Button variant="primary" onClick={() => setUploadOpen(true)}>
+              <Upload size={15} /> Upload File
+            </Button>
+          )}
+        </div>
       </div>
+
+      {isRegistrar && (
+        <UploadCaseFileModal
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          caseId={courtCase.caseId}
+          onUploaded={handleFileUploaded}
+        />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-16 text-ink-500 gap-2">
@@ -132,6 +209,8 @@ export const CaseFilesPage = () => {
               <Badge tone="neutral">{formatFileSize(selected.fileSizeKb, 'KB')}</Badge>
             </div>
 
+            {renderPreview(selected)}
+
             <div>
               <p className="text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Summary</p>
               <p className="text-sm text-ink-900 leading-relaxed">{selected.summary}</p>
@@ -149,7 +228,7 @@ export const CaseFilesPage = () => {
               </div>
             </div>
 
-            {selected.relatedSections && (
+            {!!selected.relatedSections?.length && (
               <div>
                 <p className="text-xs font-medium text-ink-500 uppercase tracking-wide mb-1.5">Related Provisions</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -158,12 +237,19 @@ export const CaseFilesPage = () => {
               </div>
             )}
 
-            <button
-              onClick={() => handleDownload(selected)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm bg-navy-900 text-white text-sm font-medium hover:bg-navy-800 transition-colors"
-            >
-              <Download size={15} /> Download Document
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleDownload(selected)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-sm bg-navy-900 text-white text-sm font-medium hover:bg-navy-800 transition-colors"
+              >
+                <Download size={15} /> Download Document
+              </button>
+              {isRegistrar && (
+                <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                  <Pencil size={14} /> Edit
+                </Button>
+              )}
+            </div>
 
             <div>
               <p className="text-xs font-medium text-ink-500 uppercase tracking-wide mb-3">Chain of Custody</p>
@@ -172,6 +258,15 @@ export const CaseFilesPage = () => {
           </div>
         )}
       </Drawer>
+
+      {isRegistrar && selected && (
+        <EditCaseFileModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          file={selected}
+          onSaved={handleFileSaved}
+        />
+      )}
     </div>
   );
 };

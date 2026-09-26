@@ -1,21 +1,25 @@
 import React, { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, FolderSearch, Loader2, Search } from 'lucide-react';
+import { AlertTriangle, ChevronRight, FolderSearch, Loader2, Plus, Search } from 'lucide-react';
 import { AppLayout } from '../components/layout/AppLayout';
 import { CaseTile } from '../components/case/CaseTile';
-import { Input, EmptyState } from '../components/ui/Primitives';
-import { CaseStage } from '../types';
+import { Button, EmptyState, Input } from '../components/ui/Primitives';
+import { NewCaseModal } from '../components/case/NewCaseModal';
+import { CaseStage, LegalDesignation } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useAsync } from '../hooks/useAsync';
 import { fetchCases } from '../services/api';
 
 export const HomePage = () => {
   const { user } = useAuth();
+  const isRegistrar = user?.designation === LegalDesignation.REGISTRAR;
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'history' ? 'history' : 'ongoing';
   const [query, setQuery] = useState('');
+  const [newCaseOpen, setNewCaseOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const { data: cases, loading, error } = useAsync(fetchCases, []);
+  const { data: cases, loading, error } = useAsync(fetchCases, [reloadKey]);
 
   const ongoingCases = useMemo(() => (cases || []).filter((c) => c.stage !== CaseStage.DISPOSED), [cases]);
   const historyCases = useMemo(() => (cases || []).filter((c) => c.stage === CaseStage.DISPOSED), [cases]);
@@ -66,16 +70,31 @@ export const HomePage = () => {
           </p>
         </div>
 
-        <div className="relative w-full sm:w-80">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
-          <Input
-            placeholder="Search by case name, case ID or CNR"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-9 rounded-sm"
-          />
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-80">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300" />
+            <Input
+              placeholder="Search by case name, case ID or CNR"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="pl-9 rounded-sm"
+            />
+          </div>
+          {isRegistrar && (
+            <Button variant="primary" onClick={() => setNewCaseOpen(true)}>
+              <Plus size={15} /> New Case
+            </Button>
+          )}
         </div>
       </div>
+
+      {isRegistrar && (
+        <NewCaseModal
+          open={newCaseOpen}
+          onClose={() => setNewCaseOpen(false)}
+          onCreated={() => setReloadKey((k) => k + 1)}
+        />
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-ink-500 gap-2">

@@ -284,6 +284,6 @@ export const SectionHeading = ({ title, description, action }: { title: string; 
 export const DescriptionRow = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="py-2.5 grid grid-cols-3 gap-4 border-b border-line-200 last:border-0">
     <dt className="text-xs font-medium text-ink-500 uppercase tracking-wide col-span-1">{label}</dt>
-    <dd className="text-sm text-ink-900 col-span-2">{value}</dd>
+    <dd className="text-sm text-ink-900 col-span-2">{value || '—'}</dd>
   </div>
 );

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useOutletContext, useParams } from 'react-router-dom';
 import { FileQuestion, Loader2 } from 'lucide-react';
 import { Header } from './Header';
@@ -21,7 +21,9 @@ const ShellWithMessage = ({ children }: { children: React.ReactNode }) => (
 export const CaseLayout = () => {
   const { caseId } = useParams<{ caseId: string }>();
   const { user } = useAuth();
-  const { data: courtCase, loading, error } = useAsync(() => fetchCase(caseId!), [caseId]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { data: courtCase, loading, error } = useAsync(() => fetchCase(caseId!), [caseId, reloadKey]);
+  const refresh = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     if (courtCase && user) {
@@ -58,7 +60,7 @@ export const CaseLayout = () => {
       <div className="max-w-[1400px] mx-auto flex flex-1 w-full">
         <CaseSidebar courtCase={courtCase} />
         <div id="main-content" className="flex-1 min-w-0 p-6 md:p-8">
-          <Outlet context={{ courtCase }} />
+          <Outlet context={{ courtCase, refresh }} />
         </div>
       </div>
       <Footer variant="slim" />
@@ -66,4 +68,4 @@ export const CaseLayout = () => {
   );
 };
 
-export const useCaseContext = () => useOutletContext<{ courtCase: CourtCase }>();
+export const useCaseContext = () => useOutletContext<{ courtCase: CourtCase; refresh: () => void }>();

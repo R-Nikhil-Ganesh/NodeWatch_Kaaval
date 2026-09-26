@@ -184,6 +184,15 @@ export const EvidencePage = () => {
               <IntegrityBadge status={selected.integrityStatus} />
               <Badge tone="neutral">{selected.fileSizeMb} MB</Badge>
             </div>
+
+            {selected.fileType === 'IMAGE' && selected.previewUrl && (
+              <img
+                src={selected.previewUrl}
+                alt={selected.fileName}
+                className="w-full max-h-[420px] object-contain rounded-sm border border-line-200 bg-paper-50"
+              />
+            )}
+
             <p className="text-sm text-ink-900 leading-relaxed">{selected.description}</p>
 
             <div className="bg-navy-900 text-navy-100 rounded-sm p-4 space-y-2.5 font-mono text-xs">

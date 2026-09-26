@@ -192,6 +192,9 @@ export interface CaseFile {
   linkedEvidenceIds?: string[];
   custodyTrail: CustodyEvent[];
   summary: string;
+  /** Presigned URL to the real uploaded bytes, if any — older metadata-only
+   *  records (filed before real uploads existed) have no attached file. */
+  fileUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +239,8 @@ export interface DigitalEvidence {
   section63CertificateId?: string; // links to a CaseFile of type 'Section 63 BSA Certificate'
   fileSizeMb: number;
   custodyTrail: CustodyEvent[];
+  /** Presigned URL to the stored bytes, when the underlying evidence row has one. */
+  previewUrl?: string;
 }
 
 export type EvidenceItem = PhysicalEvidence | DigitalEvidence;

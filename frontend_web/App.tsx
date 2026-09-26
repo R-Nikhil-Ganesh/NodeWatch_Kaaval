@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StoreProvider, useStore } from './store';
 import { Layout } from './components/Layout';
-import { AdminDashboard, ForensicsDashboard, LegalDashboard, PoliceDashboard, AdminUsersView, SystemLogsView } from './components/Dashboards';
+import { AdminDashboard, ForensicsDashboard, PoliceDashboard, AdminUsersView, SystemLogsView } from './components/Dashboards';
 import { CaseDetail } from './components/CaseViews';
 import { ChainOfCustodyView } from './components/ChainOfCustody';
 import { EvidenceVault } from './components/EvidenceVault';
@@ -171,6 +171,59 @@ const UserProfileModal = ({
   );
 };
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  onReset: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+// Declared at module scope (not inside Main) so its class identity is stable
+// across renders — nesting it inside a component previously forced React to
+// remount this boundary's whole subtree (losing all local state, e.g. any
+// open modal) on every re-render of Main, since each render produced a "new"
+// ErrorBoundary type.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("View render error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center max-w-lg mx-auto my-12 bg-white border border-line-300 rounded shadow-card">
+          <div className="w-12 h-12 bg-status-urgentBg text-status-urgent rounded-full flex items-center justify-center mx-auto mb-3">
+            <X size={24} />
+          </div>
+          <h3 className="text-lg font-bold text-navy-900 mb-1">View Rendering Notice</h3>
+          <p className="text-xs text-ink-500 mb-4">{this.state.error?.message || "An unexpected error occurred while rendering this page."}</p>
+          <Button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset();
+            }}
+          >
+            Return to Dashboard
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const Main = () => {
   const { currentUser, logs, cases, isAuthenticated, updateUser, logout } = useStore();
   const [view, setView] = useState('dashboard');
@@ -297,62 +350,12 @@ const Main = () => {
         return <PoliceDashboard onNavigate={handleNavigate} />;
       case UserRole.FORENSICS:
         return <ForensicsDashboard onNavigate={handleNavigate} />;
-      case UserRole.LEGAL:
-        return <LegalDashboard onNavigate={handleNavigate} />;
       case UserRole.ADMIN:
         return <AdminDashboard onNavigate={handleNavigate} />;
       default:
         return <div>Access Denied</div>;
     }
   };
-
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  onReset: () => void;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error("View render error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-8 text-center max-w-lg mx-auto my-12 bg-white border border-line-300 rounded shadow-card">
-          <div className="w-12 h-12 bg-status-urgentBg text-status-urgent rounded-full flex items-center justify-center mx-auto mb-3">
-            <X size={24} />
-          </div>
-          <h3 className="text-lg font-bold text-navy-900 mb-1">View Rendering Notice</h3>
-          <p className="text-xs text-ink-500 mb-4">{this.state.error?.message || "An unexpected error occurred while rendering this page."}</p>
-          <Button
-            onClick={() => {
-              this.setState({ hasError: false, error: null });
-              this.props.onReset();
-            }}
-          >
-            Return to Dashboard
-          </Button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
   return (
     <>

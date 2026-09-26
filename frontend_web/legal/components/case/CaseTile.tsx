@@ -29,6 +29,8 @@ export const CaseTile = ({ courtCase }: { courtCase: CourtCase }) => {
         <p className="text-xs text-ink-500 mt-0.5">{courtCase.caseId}</p>
       </div>
 
+      {!courtCase.court && <Badge tone="pending">Court Not Assigned</Badge>}
+
       <div className="flex items-center gap-1.5 text-xs text-ink-500 pt-2 border-t border-line-200">
         <CalendarDays size={13} className="shrink-0" />
         <span>Registered {formatDate(courtCase.registeredAt)}</span>
