@@ -200,6 +200,17 @@ router.post('/', async (req, res) => {
         ]
       );
 
+      // Register the item for forensic-lab tracking so it actually shows up
+      // on the Forensics screen — nothing else in the upload path creates
+      // this row, so without it every newly uploaded item was invisible
+      // there (only the original seed data ever had one).
+      await dbClient.query(
+        `INSERT INTO forensic_records (record_id, evidence_id, case_id, examination_status)
+         VALUES ($1, $2, $3, 'Pending Submission')
+         ON CONFLICT (evidence_id) DO NOTHING`,
+        [`FR-${id}`, id, caseId]
+      );
+
       await dbClient.query('COMMIT');
 
       await auditService.log({

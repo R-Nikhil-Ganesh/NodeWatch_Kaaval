@@ -16,21 +16,62 @@ const DB_NAME = 'kaaval_local.db';
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
-/** Open (or reuse) the database and run schema migrations */
-export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (_db) return _db;
-  _db = await SQLite.openDatabaseAsync(DB_NAME);
+async function openFreshDatabase(): Promise<SQLite.SQLiteDatabase> {
+  const db = await SQLite.openDatabaseAsync(DB_NAME);
   try {
     // Enable WAL mode for better concurrent read performance
-    await _db.execAsync('PRAGMA journal_mode = WAL;');
+    await db.execAsync('PRAGMA journal_mode = WAL;');
   } catch (e) {
     console.warn('[SQLite] WAL pragma skipped:', e);
   }
   // Run all CREATE TABLE IF NOT EXISTS statements
   for (const ddl of ALL_SCHEMAS) {
-    await _db.execAsync(ddl);
+    await db.execAsync(ddl);
+  }
+  return db;
+}
+
+/** Open (or reuse) the database and run schema migrations */
+export async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
+  if (!_db) {
+    _db = await openFreshDatabase();
   }
   return _db;
+}
+
+/**
+ * In dev, Fast Refresh can leave `_db` pointing at a native SQLite handle
+ * the native module has already torn down — every call then rejects with
+ * "NativeDatabase.prepareAsync ... NullPointerException" even though the
+ * device is fully online, which gets misread upstream as "offline, queued".
+ * Callers that hit that specific failure should discard the stale handle
+ * and retry once against a freshly-opened database instead of surfacing it
+ * as a network error.
+ */
+export function isStaleDatabaseHandleError(err: any): boolean {
+  const message = String(err?.message || err || '');
+  return message.includes('NativeDatabase.prepareAsync') || message.includes('NativeDatabase.runAsync');
+}
+
+export async function reopenDatabase(): Promise<SQLite.SQLiteDatabase> {
+  _db = await openFreshDatabase();
+  return _db;
+}
+
+/** Runs `fn` against the open database, transparently reopening and retrying
+ * once if the handle turned out to be stale (see isStaleDatabaseHandleError). */
+export async function withDb<T>(fn: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> {
+  const db = await openDatabase();
+  try {
+    return await fn(db);
+  } catch (err) {
+    if (isStaleDatabaseHandleError(err)) {
+      console.warn('[SQLite] Stale handle detected, reopening and retrying once:', err);
+      const fresh = await reopenDatabase();
+      return await fn(fresh);
+    }
+    throw err;
+  }
 }
 
 // ─── LOCAL CASES ─────────────────────────────────────────────────────────────
@@ -109,9 +150,8 @@ export async function upsertLocalEvidence(ev: {
   created_at: string;
   updated_at: string;
 }): Promise<void> {
-  const db   = await openDatabase();
   const safe = await encryptEvidenceFields(ev);   // encrypt sensitive fields
-  await db.runAsync(
+  await withDb(db => db.runAsync(
     `INSERT INTO local_evidence
        (evidence_id, case_id, name, file_name, type, local_file_uri, remote_file_url,
         file_hash, metadata_hash, classification, integrity_status, risk_level,
@@ -133,7 +173,7 @@ export async function upsertLocalEvidence(ev: {
       safe.sync_status || 'PENDING_UPLOAD',
       safe.created_at, safe.updated_at,
     ]
-  );
+  ));
 }
 
 // ─── PENDING EVIDENCE UPLOAD RETRY ─────────────────────────────────────────

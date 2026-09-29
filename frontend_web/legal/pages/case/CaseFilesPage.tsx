@@ -84,20 +84,14 @@ export const CaseFilesPage = () => {
   };
 
   // Renders the actual file inline in the drawer whenever one is attached —
-  // no extra click needed. PDFs embed directly; images render as <img>;
-  // other formats (DOCX) can't be previewed in-browser so fall back to a
-  // link, and metadata-only legacy records show neither.
+  // no extra click needed. Images render as <img>; other formats (DOCX) can't
+  // be previewed in-browser so fall back to a link, and metadata-only legacy
+  // records show neither. PDFs are deliberately NOT embedded here — they open
+  // in the centered viewer instead (see PdfCenterViewer below) so they get
+  // real reading room instead of being squeezed into the side drawer.
   const renderPreview = (file: CaseFile) => {
     if (!file.fileUrl) return null;
-    if (file.fileFormat === 'PDF') {
-      return (
-        <iframe
-          src={file.fileUrl}
-          title={file.title}
-          className="w-full h-[420px] rounded-sm border border-line-200 bg-paper-50"
-        />
-      );
-    }
+    if (file.fileFormat === 'PDF') return null;
     if (file.fileFormat === 'JPEG') {
       return (
         <img
@@ -258,6 +252,21 @@ export const CaseFilesPage = () => {
           </div>
         )}
       </Drawer>
+
+      {/* PDFs get a real, centered reading view alongside the details drawer
+          instead of being squeezed into its narrow column. Reserves space on
+          the right so it never sits under the open drawer. z-[60] so it sits
+          above the Drawer's own full-screen dim/blur backdrop (z-50) —
+          otherwise that backdrop washes out the PDF underneath it. */}
+      {selected && selected.fileFormat === 'PDF' && selected.fileUrl && (
+        <div className="fixed inset-y-6 left-6 right-[38rem] z-[60] flex items-center justify-center pointer-events-none">
+          <iframe
+            src={selected.fileUrl}
+            title={selected.title}
+            className="w-full h-full rounded-sm border border-line-200 shadow-2xl bg-white pointer-events-auto"
+          />
+        </div>
+      )}
 
       {isRegistrar && selected && (
         <EditCaseFileModal

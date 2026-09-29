@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Platform, Modal, TextInput } from 'react-native';
 // Use legacy API on native to avoid deprecation warnings
 import * as FileSystem from 'expo-file-system/legacy';
 import { RouteProp } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 import { useApp } from '../context/AppContext';
 import { RootStackParamList, Evidence } from '../types';
 import { apiService } from '../services/api';
@@ -190,6 +191,9 @@ export default function EvidenceScreen({ route, navigation }: Props) {
   };
 
   // --- EVIDENCE UPLOAD LOGIC ---
+  const [pendingAsset, setPendingAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [evidenceName, setEvidenceName] = useState('');
+
   const pickImage = async (useCamera = false) => {
     if (useCamera) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -199,16 +203,32 @@ export default function EvidenceScreen({ route, navigation }: Props) {
       }
     }
 
-    let result = useCamera 
+    let result = useCamera
       ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images });
 
     if (!result.canceled && result.assets) {
-      analyzeDocument(result.assets[0]);
+      // Ask for a case-relevant name (e.g. "Victim Apparel Exhibit") before
+      // uploading, instead of silently keeping the camera/gallery's
+      // auto-generated filename (e.g. "IMG_20260928_..." or a random content
+      // URI id) — left blank so the officer types a real name, not a
+      // meaningless prefill.
+      const asset = result.assets[0];
+      setPendingAsset(asset);
+      setEvidenceName('');
     }
   };
 
-  const analyzeDocument = async (asset: ImagePicker.ImagePickerAsset) => {
+  const confirmNamingAndUpload = async () => {
+    if (!pendingAsset) return;
+    const asset = pendingAsset;
+    const name = evidenceName.trim();
+    setPendingAsset(null);
+    setEvidenceName('');
+    await analyzeDocument(asset, name);
+  };
+
+  const analyzeDocument = async (asset: ImagePicker.ImagePickerAsset, customName?: string) => {
     const location = activeCase?.location || 'Crime Scene';
 
     setLoading(true);
@@ -218,27 +238,35 @@ export default function EvidenceScreen({ route, navigation }: Props) {
       const tempUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${extension}`;
       await FileSystem.copyAsync({ from: asset.uri, to: tempUri });
 
-      // Compute actual source SHA-256 hash at capture edge
+      // Compute actual source SHA-256 hash at capture edge, over the raw file
+      // bytes — NOT its base64 text. digestStringAsync hashes the string it's
+      // given, so feeding it the base64 encoding would hash the base64
+      // characters instead of the underlying binary, producing a value the
+      // server's hash of the real bytes could never match — which is exactly
+      // why every mobile upload was showing as integrity "COMPROMISED" on the
+      // web dashboard, since the server hashes the raw multipart bytes.
       let sourceHash = '';
       try {
-        const fileContent = await FileSystem.readAsStringAsync(tempUri, { encoding: FileSystem.EncodingType.Base64 });
-        sourceHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, fileContent);
+        const base64Content = await FileSystem.readAsStringAsync(tempUri, { encoding: FileSystem.EncodingType.Base64 });
+        const fileBytes = Buffer.from(base64Content, 'base64');
+        const digestBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, fileBytes);
+        sourceHash = Buffer.from(digestBuffer).toString('hex');
       } catch (hashErr) {
         console.warn('Source hash computation fallback:', hashErr);
         sourceHash = 'hash_' + Date.now().toString(16);
       }
 
       const newEvidence: Evidence = {
-        type: 'image', 
+        type: 'image',
         uri: tempUri,
-        hash: sourceHash, 
+        hash: sourceHash,
         timestamp: new Date().toISOString(),
-        name: asset.fileName || 'Scene Photo / Document',
+        name: customName || asset.fileName || 'Scene Photo / Document',
         // Hint mime for upload
         mimeType: 'image/jpeg',
         location
       };
-      
+
       // Upload to backend (will persist file and metadata) and register in context
       const { synced } = await updateCaseEvidence(caseId, newEvidence);
       Alert.alert(
@@ -328,30 +356,102 @@ export default function EvidenceScreen({ route, navigation }: Props) {
 
           <View style={styles.connectorLine} />
 
-          {(activeCase.evidence || []).map((item, index) => (
-            <React.Fragment key={index}>
-              <View style={styles.flowNode}>
-                <View style={styles.nodeIcon}>
-                  <Ionicons name="image" size={20} color="white" />
+          {(activeCase.evidence || []).map((item, index) => {
+            // The evidence `type` is a legal/case classification (e.g. a
+            // clothing exhibit is "PHYSICAL"), not the underlying file's
+            // media type — the actual upload can still be a plain photo. So
+            // decide how to render off the file extension/mime type instead.
+            // item.name is a human title ("Victim Apparel & Fiber Exhibit"),
+            // never an extension — check the actual filename/URL first.
+            const fileName = (item as any).file_name || item.uri || item.name || '';
+            const isImage = item.mimeType?.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp)$/i.test(fileName);
+            const isVideo = item.mimeType?.startsWith('video/') || /\.(mp4|mov|webm|mkv)$/i.test(fileName);
+            const isAudio = item.mimeType?.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|aac)$/i.test(fileName);
+            const nodeIconName = isImage ? 'image' : isVideo ? 'videocam' : isAudio ? 'musical-notes' : 'document-text';
+
+            return (
+              <React.Fragment key={index}>
+                <View style={styles.flowNode}>
+                  <View style={styles.nodeIcon}>
+                    <Ionicons name={nodeIconName} size={20} color="white" />
+                  </View>
+                  <View style={styles.nodeContent}>
+                    <Text style={styles.nodeTitle}>{item.name}</Text>
+                    <Text style={styles.nodeTime}>{new Date(item.timestamp).toLocaleString()}</Text>
+                    <Text style={styles.nodeHash}>{item.location}</Text>
+                    <Text style={[styles.nodeHash, { color: COLORS.secondary }]}>SHA-256: {item.hash.substring(0, 15)}...</Text>
+                    {isImage ? (
+                      <Image source={{ uri: item.uri }} style={styles.nodeImage} />
+                    ) : item.thumbnailUri ? (
+                      <View style={styles.nodeImage}>
+                        <Image source={{ uri: item.thumbnailUri }} style={StyleSheet.absoluteFill} />
+                        {isVideo && (
+                          <View style={styles.nodePlayOverlay}>
+                            <Ionicons name="play-circle" size={36} color="rgba(255,255,255,0.9)" />
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={[styles.nodeImage, styles.nodeFilePlaceholder]}>
+                        <Ionicons name={isVideo ? 'play-circle' : isAudio ? 'musical-notes' : 'document-text'} size={36} color={COLORS.textDim} />
+                        <Text style={styles.nodeFilePlaceholderText}>{item.type}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.nodeContent}>
-                  <Text style={styles.nodeTitle}>{item.name}</Text>
-                  <Text style={styles.nodeTime}>{new Date(item.timestamp).toLocaleString()}</Text>
-                  <Text style={styles.nodeHash}>{item.location}</Text>
-                  <Text style={[styles.nodeHash, { color: COLORS.secondary }]}>SHA-256: {item.hash.substring(0, 15)}...</Text>
-                  <Image source={{ uri: item.uri }} style={styles.nodeImage} />
-                </View>
-              </View>
-              {index < (activeCase.evidence || []).length - 1 && <View style={styles.connectorLine} />}
-            </React.Fragment>
-          ))}
+                {index < (activeCase.evidence || []).length - 1 && <View style={styles.connectorLine} />}
+              </React.Fragment>
+            );
+          })}
         </View>
       </ScrollView>
+
+      <Modal visible={!!pendingAsset} transparent animationType="fade" onRequestClose={() => setPendingAsset(null)}>
+        <View style={styles.namingOverlay}>
+          <View style={styles.namingCard}>
+            <Text style={styles.namingTitle}>Name This Evidence</Text>
+            <Text style={styles.namingSub}>e.g. "Victim Apparel Exhibit" or "Corridor CCTV Frame"</Text>
+            <TextInput
+              style={styles.namingInput}
+              placeholder="Evidence name"
+              placeholderTextColor="#64748b"
+              value={evidenceName}
+              onChangeText={setEvidenceName}
+              autoFocus
+            />
+            <View style={styles.namingActions}>
+              <TouchableOpacity
+                style={[styles.namingBtn, styles.namingBtnGhost]}
+                onPress={() => { setPendingAsset(null); setEvidenceName(''); }}
+              >
+                <Text style={styles.namingBtnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.namingBtn, { backgroundColor: COLORS.primary }]}
+                onPress={confirmNamingAndUpload}
+                disabled={!evidenceName.trim()}
+              >
+                <Text style={styles.actionText}>Save & Upload</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  namingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  namingCard: { backgroundColor: COLORS.card, borderRadius: 12, padding: 20 },
+  namingTitle: { color: 'white', fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
+  namingSub: { color: COLORS.textDim, fontSize: 12, marginBottom: 14 },
+  namingInput: { backgroundColor: COLORS.background, color: 'white', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 16 },
+  namingActions: { flexDirection: 'row', gap: 12 },
+  namingBtn: { flex: 1, paddingVertical: 12, borderRadius: SIZES.radius, alignItems: 'center' },
+  namingBtnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.border },
+  namingBtnGhostText: { color: COLORS.textDim, fontWeight: 'bold' },
+
   navHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   downloadBtn: { flexDirection: 'row', backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignItems: 'center', gap: 6 },
   downloadText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
@@ -376,6 +476,9 @@ const styles = StyleSheet.create({
   nodeTime: { color: COLORS.textDim, fontSize: 12, marginBottom: 5 },
   nodeDesc: { color: COLORS.text, fontSize: 12 },
   nodeHash: { color: COLORS.textDim, fontFamily: 'Courier', fontSize: 10, marginBottom: 4 },
-  nodeImage: { width: '100%', height: 120, borderRadius: 8, marginTop: 5, backgroundColor: COLORS.background },
+  nodeImage: { width: '100%', height: 120, borderRadius: 8, marginTop: 5, backgroundColor: COLORS.background, overflow: 'hidden' },
+  nodeFilePlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 6 },
+  nodePlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  nodeFilePlaceholderText: { color: COLORS.textDim, fontSize: 11, fontWeight: '600', letterSpacing: 1 },
   connectorLine: { width: 2, backgroundColor: COLORS.border, height: 30, marginLeft: 19, marginVertical: -5 }
 });

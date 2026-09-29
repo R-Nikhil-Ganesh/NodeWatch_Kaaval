@@ -28,6 +28,11 @@ services:
     ports:
       - "127.0.0.5:${MINIO_PORT:-9000}:9000"
       - "127.0.0.5:${MINIO_CONSOLE_PORT:-9001}:9001"
+      # Also published on the LAN IP so phones on the same Wi-Fi can load
+      # presigned evidence URLs (127.0.0.5 above is loopback-only, unreachable
+      # from other devices). Update MINIO_LAN_IP whenever this machine's Wi-Fi
+      # IP changes (see frontend_mobile/.env, which needs the same update).
+      - "${MINIO_LAN_IP:-192.168.1.2}:${MINIO_PORT:-9000}:9000"
     volumes:
       - minio_data:/data
     healthcheck:

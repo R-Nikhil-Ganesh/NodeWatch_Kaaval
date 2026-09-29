@@ -244,6 +244,7 @@ const mapCase = (row: any): CourtCase => ({
   upcomingHearingDate: row.upcomingHearingDate ?? undefined,
   disposedAt: row.disposedAt ?? undefined,
   currentCustodian: row.currentCustodian || '—',
+  isImmediate: !!row.isImmediate,
 });
 
 export async function fetchCases(): Promise<CourtCase[]> {
@@ -290,6 +291,8 @@ export interface NewCasePayload {
   investigatingOfficer?: string;
   investigatingOfficerDesignation?: string;
   parties?: CaseParty[];
+  isImmediate?: boolean;
+  sourceCaseIds?: string[];
 }
 
 export async function createCaseRequest(payload: NewCasePayload): Promise<CourtCase> {
@@ -380,7 +383,7 @@ const mapCaseFile = (row: any): CaseFile => {
     uploadedAt: row.created_at,
     relatedSections: row.related_sections || [],
     linkedEvidenceIds: row.linked_evidence_ids || [],
-    custodyTrail: singleCustodyEvent('Filed in Court', row.created_at, uploadedBy, uploadedByRole, 'Court Registry', 'Court Registry'),
+    custodyTrail: singleCustodyEvent('Filed in Court', row.created_at, uploadedBy, uploadedByRole, 'Court Registry', ''),
     summary: row.description || '',
     fileUrl: row.uri || undefined,
   };

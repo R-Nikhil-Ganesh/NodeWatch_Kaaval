@@ -20,6 +20,15 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 
+// TODO: `Buffer` below is the Node global, which doesn't exist in RN/Hermes.
+// Every encrypt()/decrypt() call throws "Property 'Buffer' doesn't exist",
+// gets caught by that function's own try/catch, and silently falls back to
+// storing the field in PLAINTEXT — so file_hash, metadata_hash,
+// collected_location, and name are currently never actually encrypted at
+// rest, contrary to this file's own header comment. Fix: `import { Buffer }
+// from 'buffer'` (already a project dependency; see EvidenceScreen.tsx for
+// the same fix applied elsewhere).
+
 const KEY_STORE_ID = 'kaaval_field_enc_key_v1';
 const ALGORITHM    = 'AES-CBC';     // expo-crypto's SubtleCrypto equivalent
 

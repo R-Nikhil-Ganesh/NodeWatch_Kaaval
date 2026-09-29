@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
   try {
     const { caseId } = req.query;
     const selectSql = `
-      SELECT d.*, u.name AS uploaded_by_name
+      SELECT d.*, u.name AS uploaded_by_name, u.designation AS uploaded_by_role
       FROM case_documents d
       LEFT JOIN users u ON d.uploaded_by = u.user_id
       ${caseId ? 'WHERE d.case_id = $1' : ''}

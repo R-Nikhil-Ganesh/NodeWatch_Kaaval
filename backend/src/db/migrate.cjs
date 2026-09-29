@@ -32,6 +32,16 @@ async function main() {
     const investigationSql = fs.readFileSync(path.join(__dirname, 'investigation_extension.sql'), 'utf8');
     await client.query(investigationSql);
     console.log('Investigation domain extension applied.');
+
+    console.log('Applying thumbnail cache extension...');
+    const thumbnailSql = fs.readFileSync(path.join(__dirname, 'thumbnail_extension.sql'), 'utf8');
+    await client.query(thumbnailSql);
+    console.log('Thumbnail cache extension applied.');
+
+    console.log('Applying immediate case extension...');
+    const immediateCaseSql = fs.readFileSync(path.join(__dirname, 'immediate_case_extension.sql'), 'utf8');
+    await client.query(immediateCaseSql);
+    console.log('Immediate case extension applied.');
   } finally {
     await client.end();
   }

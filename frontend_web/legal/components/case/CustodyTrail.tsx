@@ -11,9 +11,9 @@ export const CustodyTrail = ({ events }: { events: CustodyEvent[] }) => (
         <p className="text-xs text-ink-500">{formatDateTime(e.timestamp)}</p>
         <p className="text-sm text-ink-900 font-medium mt-0.5">{e.action}</p>
         <p className="text-xs text-ink-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-          <span>{e.fromCustodian} <span className="text-ink-300">({e.fromRole})</span></span>
+          <span>{e.fromCustodian} {e.fromRole && <span className="text-ink-300">({e.fromRole})</span>}</span>
           <ArrowRight size={12} className="text-ink-300" />
-          <span>{e.toCustodian} <span className="text-ink-300">({e.toRole})</span></span>
+          <span>{e.toCustodian} {e.toRole && <span className="text-ink-300">({e.toRole})</span>}</span>
         </p>
         {e.notes && <p className="text-xs text-ink-500 mt-1 italic">&ldquo;{e.notes}&rdquo;</p>}
       </li>

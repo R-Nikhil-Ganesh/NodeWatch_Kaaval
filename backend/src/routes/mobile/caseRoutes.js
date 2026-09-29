@@ -2,9 +2,43 @@ import express from 'express';
 import { query } from '../../db/index.js';
 import { auditService } from '../../services/auditService.js';
 import { storageService } from '../../services/storageService.js';
+import { thumbnailService } from '../../services/thumbnailService.js';
 import { config } from '../../config/index.js';
 
 const router = express.Router();
+
+// Mobile has no video/PDF rendering library, so give it a real first-frame /
+// first-page image instead of forcing a generic icon. Rendered once per
+// evidence item and cached back into MinIO + evidence.thumbnail_url so
+// repeat list/detail fetches don't re-decode the source file.
+async function resolveThumbnailUrl(ev) {
+  if (ev.thumbnail_url && ev.thumbnail_url.startsWith('minio://')) {
+    return storageService.getPublicPresignedUrl(ev.thumbnail_url.replace('minio://', '')).catch(() => null);
+  }
+  if (!ev.file_url || !ev.file_url.startsWith('minio://')) return null;
+
+  const fileName = ev.file_name || ev.name || '';
+  const isVideo = /\.(mp4|mov|webm|mkv)$/i.test(fileName);
+  const isPdf = /\.pdf$/i.test(fileName);
+  if (!isVideo && !isPdf) return null;
+
+  try {
+    const sourceKey = ev.file_url.replace('minio://', '');
+    const buffer = await storageService.getFileBuffer(sourceKey);
+    const thumbBuffer = isVideo
+      ? await thumbnailService.fromVideo(buffer)
+      : await thumbnailService.fromPdf(buffer);
+
+    const thumbKey = `thumbnails/${ev.evidence_id}.jpg`;
+    await storageService.uploadFile({ key: thumbKey, buffer: thumbBuffer, mimeType: 'image/jpeg' });
+    await query(`UPDATE evidence SET thumbnail_url = $1 WHERE evidence_id = $2`, [`minio://${thumbKey}`, ev.evidence_id]);
+
+    return storageService.getPublicPresignedUrl(thumbKey);
+  } catch (err) {
+    console.error(`[thumbnail] Failed for ${ev.evidence_id}:`, err.message);
+    return null;
+  }
+}
 
 // List all active cases with embedded evidence (for mobile SQLite caching)
 router.get('/', async (req, res) => {
@@ -30,13 +64,16 @@ router.get('/', async (req, res) => {
         let presignedUrl = ev.file_url;
         if (ev.file_url && ev.file_url.startsWith('minio://')) {
           const key = ev.file_url.replace('minio://', '');
-          presignedUrl = await storageService.getPresignedUrl(key).catch(() => ev.file_url);
+          presignedUrl = await storageService.getPublicPresignedUrl(key).catch(() => ev.file_url);
         }
+        const thumbnailUri = await resolveThumbnailUrl(ev).catch(() => null);
         return {
           ...ev,
           id: ev.evidence_id,
           hash: ev.file_hash,
           uri: presignedUrl,
+          thumbnailUri,
+          timestamp: ev.collected_timestamp || ev.created_at,
         };
       })
     );
@@ -80,9 +117,17 @@ router.get('/:id', async (req, res) => {
         let presignedUrl = ev.file_url;
         if (ev.file_url && ev.file_url.startsWith('minio://')) {
           const key = ev.file_url.replace('minio://', '');
-          presignedUrl = await storageService.getPresignedUrl(key).catch(() => ev.file_url);
+          presignedUrl = await storageService.getPublicPresignedUrl(key).catch(() => ev.file_url);
         }
-        return { ...ev, id: ev.evidence_id, hash: ev.file_hash, uri: presignedUrl };
+        const thumbnailUri = await resolveThumbnailUrl(ev).catch(() => null);
+        return {
+          ...ev,
+          id: ev.evidence_id,
+          hash: ev.file_hash,
+          uri: presignedUrl,
+          thumbnailUri,
+          timestamp: ev.collected_timestamp || ev.created_at,
+        };
       })
     );
 

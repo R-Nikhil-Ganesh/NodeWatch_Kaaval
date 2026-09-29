@@ -47,6 +47,13 @@ export const EvidencePage = () => {
     setVerifyResult(null);
   };
 
+  // `fileType` collapses PDF and WORD into 'DOCUMENT' (see DIGITAL_FILE_TYPE_MAP
+  // in api.ts), so it can't tell a real PDF apart from a DOCX — check the
+  // actual filename instead, same as the Case Files centered viewer.
+  const isPdfEvidence = selected?.kind === 'DIGITAL' && /\.pdf$/i.test(selected.fileName);
+  const isImageEvidence = selected?.kind === 'DIGITAL' && selected.fileType === 'IMAGE';
+  const isVideoEvidence = selected?.kind === 'DIGITAL' && selected.fileType === 'VIDEO';
+
   // Asks the server to recompute and compare the hash. This previously ran a
   // timer and then reported a result inferred from the already-stored status,
   // so nothing was ever actually verified.
@@ -185,14 +192,6 @@ export const EvidencePage = () => {
               <Badge tone="neutral">{selected.fileSizeMb} MB</Badge>
             </div>
 
-            {selected.fileType === 'IMAGE' && selected.previewUrl && (
-              <img
-                src={selected.previewUrl}
-                alt={selected.fileName}
-                className="w-full max-h-[420px] object-contain rounded-sm border border-line-200 bg-paper-50"
-              />
-            )}
-
             <p className="text-sm text-ink-900 leading-relaxed">{selected.description}</p>
 
             <div className="bg-navy-900 text-navy-100 rounded-sm p-4 space-y-2.5 font-mono text-xs">
@@ -256,6 +255,38 @@ export const EvidencePage = () => {
           </div>
         )}
       </Drawer>
+
+      {/* Same treatment as Case Files: PDF/image/video get a real, centered
+          view alongside the details drawer instead of being squeezed into
+          its narrow column (or, for video, not previewed at all before).
+          z-[60] so it sits above the Drawer's own full-screen dim/blur
+          backdrop (z-50) — otherwise that backdrop washes out the preview
+          underneath it. */}
+      {selected?.kind === 'DIGITAL' && selected.previewUrl && (isPdfEvidence || isImageEvidence || isVideoEvidence) && (
+        <div className="fixed inset-y-6 left-6 right-[38rem] z-[60] flex items-center justify-center pointer-events-none">
+          {isPdfEvidence && (
+            <iframe
+              src={selected.previewUrl}
+              title={selected.fileName}
+              className="w-full h-full rounded-sm border border-line-200 shadow-2xl bg-white pointer-events-auto"
+            />
+          )}
+          {isImageEvidence && (
+            <img
+              src={selected.previewUrl}
+              alt={selected.fileName}
+              className="max-w-full max-h-full object-contain rounded-sm shadow-2xl pointer-events-auto"
+            />
+          )}
+          {isVideoEvidence && (
+            <video
+              src={selected.previewUrl}
+              controls
+              className="max-w-full max-h-full rounded-sm shadow-2xl bg-black pointer-events-auto"
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 };

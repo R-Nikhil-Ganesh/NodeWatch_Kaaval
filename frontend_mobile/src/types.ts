@@ -22,6 +22,10 @@ export interface Evidence {
   mimeType?: string;
   file_url?: string;
   evidenceId?: string;
+  // Server-rendered first video frame / first PDF page (see thumbnailService
+  // on the backend); absent for images (uri itself is the image) and for
+  // types with no renderer (audio, Word docs).
+  thumbnailUri?: string | null;
 }
 
 export type CaseStatus =

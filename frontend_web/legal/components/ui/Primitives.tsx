@@ -257,7 +257,7 @@ export const Modal = ({
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-6 max-h-[85vh] overflow-y-auto">{children}</div>
       </div>
     </div>
   );

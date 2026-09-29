@@ -12,6 +12,7 @@ import { Button } from '../Common';
 import { verifyEvidenceIntegrity } from '../../services/verificationService';
 import type { VerificationResult, VerificationStage } from '../../services/types';
 import { useStore } from '../../store';
+import { IntegrityStatus } from '../../types';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { currentUser } = useStore();
+  const { currentUser, setEvidenceIntegrityStatus } = useStore();
   const [stage, setStage] = useState<VerificationStage>('idle');
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -137,6 +138,12 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({
     });
     setResult(res);
     setRunning(false);
+    // The server already persisted the new status; without this, every
+    // table/badge reading `evidence` from the store stays stale until the
+    // next full reload even though this modal shows the correct outcome.
+    if (res.currentHash || res.ledgerHash) {
+      setEvidenceIntegrityStatus(evidenceId, res.success ? IntegrityStatus.VERIFIED : IntegrityStatus.COMPROMISED);
+    }
   };
 
   const isComplete = stage === 'success' || stage === 'failure';

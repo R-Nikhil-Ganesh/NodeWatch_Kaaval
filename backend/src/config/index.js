@@ -24,6 +24,7 @@ export const config = {
 
   storage: {
     endpoint: process.env.MINIO_ENDPOINT || 'http://127.0.0.1:9000',
+    publicEndpoint: process.env.MINIO_PUBLIC_ENDPOINT || '',
     region: process.env.MINIO_REGION || 'us-east-1',
     accessKeyId: process.env.MINIO_ROOT_USER || '',
     secretAccessKey: process.env.MINIO_ROOT_PASSWORD || '',

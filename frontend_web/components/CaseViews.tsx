@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { Case, Evidence, IntegrityStatus, UserRole, CaseStatus, EvidenceType, LegalDocument, EvidenceClassification } from '../types';
 import { Card, Button, Table, Badge, CaseStatusBadge, IntegrityBadge, Input } from './Common';
 import { ArrowLeft, Upload, FileText, Lock, Eye, AlertTriangle, ShieldCheck, Download, History, File as FileIcon, Loader2, Link as LinkIcon, CheckSquare, Square, ChevronDown, Fingerprint, Shield, X, Send, Gavel, LayoutList, Scale, CheckCircle, Video, FileBadge, Edit2 } from 'lucide-react';
+import { VerificationModal } from './police/VerificationModal';
 
 // --- Security Modal Component ---
 const StatusChangeSecurityModal = ({ 
@@ -133,7 +134,7 @@ const ShieldAlertIcon = ({ stage }: { stage: string }) => {
 
 
 export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => void }) => {
-    const { cases, evidence, logs, documents, users, currentUser, uploadEvidenceFile, addLog, updateCaseStatus, verifyEvidence, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody, reassignCase } = useStore();
+    const { cases, evidence, logs, documents, users, currentUser, uploadEvidenceFile, addLog, updateCaseStatus, approveEvidence, toggleIntegrityHack, addDocument, transferCaseCustody, reassignCase } = useStore();
     const currentCase = cases.find(c => c.caseId === caseId);
     
     // View State
@@ -178,9 +179,15 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
     const [assignTarget, setAssignTarget] = useState({ custodianId: '', forensicsId: '' });
 
     // Audit & Status Modal State
-    const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null); 
+    const [selectedEvidenceId, setSelectedEvidenceId] = useState<string | null>(null);
     const [statusModalOpen, setStatusModalOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<CaseStatus | null>(null);
+
+    // Verify Integrity Modal State — the shield icon used to call
+    // verifyEvidence() directly and silently flip the status badge with no
+    // visible hash comparison; this instead surfaces the same
+    // retrieve-hash-compare workflow/modal used elsewhere in the app.
+    const [verifyingEvidenceId, setVerifyingEvidenceId] = useState<string | null>(null);
 
     if (!currentCase) return <div>Case not found</div>;
 
@@ -530,7 +537,7 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                                     <button onClick={() => handleViewEvidence(e)} title="View" className="text-ink-700 hover:text-navy-700"><Eye size={16}/></button>
 
                                     {canVerify && (
-                                        <button onClick={() => verifyEvidence(e.evidenceId)} title="Verify Integrity" className="text-ink-700 hover:text-status-resolved"><ShieldCheck size={16}/></button>
+                                        <button onClick={() => setVerifyingEvidenceId(e.evidenceId)} title="Verify Integrity" className="text-ink-700 hover:text-status-resolved"><ShieldCheck size={16}/></button>
                                     )}
 
                                     {canApprove && !e.approvedForLegal && (
@@ -986,12 +993,20 @@ export const CaseDetail = ({ caseId, onBack }: { caseId: string, onBack: () => v
                 </div>
             )}
 
-            <StatusChangeSecurityModal 
-                isOpen={statusModalOpen} 
-                onClose={() => setStatusModalOpen(false)} 
+            <StatusChangeSecurityModal
+                isOpen={statusModalOpen}
+                onClose={() => setStatusModalOpen(false)}
                 onConfirm={confirmStatusChange}
                 targetStatus={pendingStatus}
             />
+
+            {verifyingEvidenceId && (
+                <VerificationModal
+                    evidenceId={verifyingEvidenceId}
+                    isOpen={!!verifyingEvidenceId}
+                    onClose={() => setVerifyingEvidenceId(null)}
+                />
+            )}
         </div>
     );
 };

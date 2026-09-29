@@ -50,6 +50,16 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
     const evidenceId = req.body.evidenceId || `ev_${Date.now()}`;
     const originalName = req.body.name || req.file.originalname || `evidence_${Date.now()}.jpg`;
     const ext = path.extname(originalName) || '.jpg';
+    // The mobile client's multipart filename (req.file.originalname) can come
+    // back percent-encoded (e.g. a name with a space turns into
+    // "Apparel%20exhibit.jpg") depending on how React Native's networking
+    // layer builds the multipart body — that's a quirk of the wire filename,
+    // not the name the officer actually typed. Prefer rebuilding the display
+    // filename from the clean `name` field the client sends separately, and
+    // only fall back to the raw multipart filename when no name was given.
+    const fileName = req.body.name
+      ? (path.extname(req.body.name) ? req.body.name : `${req.body.name}${ext}`)
+      : (req.file.originalname || `evidence_${Date.now()}${ext}`);
     const mimeType = req.file.mimetype || 'image/jpeg';
     const clientSourceHash = req.body.sourceHash || req.body.source_hash || req.body.hash;
     const location = req.body.location || 'Crime Scene';
@@ -85,7 +95,7 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
     });
 
     const minioRefUrl = `minio://${objectKey}`;
-    const presignedDownloadUrl = await storageService.getPresignedUrl(objectKey);
+    const presignedDownloadUrl = await storageService.getPublicPresignedUrl(objectKey);
 
     // 4. Calculate metadata hash
     const metaPayload = {
@@ -129,7 +139,7 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
           evidenceId,
           caseId,
           originalName,
-          req.file.originalname || originalName,
+          fileName,
           fileType,
           mimeType,
           req.file.size,
@@ -158,6 +168,15 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
       await dbClient.query(
         `INSERT INTO evidence_visibility (evidence_id) VALUES ($1) ON CONFLICT DO NOTHING`,
         [evidenceId]
+      );
+
+      // Register the item for forensic-lab tracking (see same insert in the
+      // web upload route for why this is needed).
+      await dbClient.query(
+        `INSERT INTO forensic_records (record_id, evidence_id, case_id, examination_status)
+         VALUES ($1, $2, $3, 'Pending Submission')
+         ON CONFLICT (evidence_id) DO NOTHING`,
+        [`FR-${evidenceId}`, evidenceId, caseId]
       );
 
       // Enqueue to Blockchain Outbox

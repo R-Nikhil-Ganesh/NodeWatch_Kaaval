@@ -36,6 +36,7 @@ interface AppState {
   addDocument: (doc: LegalDocument) => void;
   updateCaseStatus: (caseId: string, status: CaseStatus) => void;
   verifyEvidence: (evidenceId: string) => Promise<{ isMatch: boolean } | null>;
+  setEvidenceIntegrityStatus: (evidenceId: string, status: IntegrityStatus) => void;
   approveEvidence: (evidenceId: string) => void;
   toggleIntegrityHack: (evidenceId: string) => void;
   updateEvidenceVisibility: (evidenceId: string, visibility: EvidenceVisibility) => void;
@@ -136,7 +137,7 @@ const mapDbLogToLog = (row: any): AccessLog => ({
   id: row.log_id || row.id,
   caseId: row.case_id || row.caseId,
   evidenceId: row.evidence_id || row.evidenceId,
-  accessedBy: row.user_name || row.user_id || row.accessedBy || 'Unknown',
+  accessedBy: row.user_name || row.joined_user_name || row.user_id || row.accessedBy || 'Unknown',
   role: row.user_role || row.role || 'POLICE',
   timestamp: row.timestamp || new Date().toISOString(),
   action: row.action,
@@ -490,6 +491,15 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
     }
   };
 
+  // The VerificationModal talks straight to the /evidence/:id/verify endpoint
+  // (it needs the full server response — hashes, ledger tx — not just a
+  // pass/fail flag), so it never went through the store and the badge in
+  // every list using `evidence` stayed stale until the next full reload.
+  // This lets it patch the one row locally right after the server responds.
+  const setEvidenceIntegrityStatus = (evidenceId: string, status: IntegrityStatus) => {
+    setEvidence(prev => prev.map(e => e.evidenceId === evidenceId ? { ...e, integrityStatus: status } : e));
+  };
+
   const approveEvidence = (evidenceId: string) => {
     const target = evidence.find(e => e.evidenceId === evidenceId);
     const canBeApproved = target?.classification === EvidenceClassification.PRIMARY || !!target?.section63Certificate;
@@ -657,6 +667,7 @@ export const StoreProvider = ({ children }: { children?: ReactNode }) => {
       addDocument,
       updateCaseStatus,
       verifyEvidence,
+      setEvidenceIntegrityStatus,
       approveEvidence,
       toggleIntegrityHack,
       updateEvidenceVisibility,

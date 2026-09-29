@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search, CheckCircle, Clock, FlaskConical, Truck, PackageCheck,
-  Microscope, FileCheck, Eye
+  Microscope, FileCheck, Eye, ShieldCheck
 } from 'lucide-react';
 import { Card, Button, Table } from '../Common';
 import { getAllForensicRecords, getForensicSummary, ForensicSummary } from '../../services/forensicService';
 import { getAllEvidence } from '../../services/evidenceService';
 import type { ForensicRecord } from '../../services/types';
+import { VerificationModal } from './VerificationModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [verifyingEvidenceId, setVerifyingEvidenceId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -345,9 +347,12 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
                     )}
                   </td>
                   <td className="px-5 py-3 whitespace-nowrap text-xs text-ink-700">{fr.examiner ?? '—'}</td>
-                  <td className="px-5 py-3 whitespace-nowrap">
+                  <td className="px-5 py-3 whitespace-nowrap flex gap-2">
                     <Button size="sm" variant="ghost" onClick={() => onNavigate('evidence_detail', fr.evidenceId)}>
                       <Eye size={13} /> View
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setVerifyingEvidenceId(fr.evidenceId)}>
+                      <ShieldCheck size={13} /> Verify
                     </Button>
                   </td>
                 </tr>
@@ -363,6 +368,14 @@ const ForensicsPage: React.FC<Props> = ({ onNavigate }) => {
           </div>
         )}
       </div>
+
+      {verifyingEvidenceId && (
+        <VerificationModal
+          evidenceId={verifyingEvidenceId}
+          isOpen={!!verifyingEvidenceId}
+          onClose={() => setVerifyingEvidenceId(null)}
+        />
+      )}
     </div>
   );
 };

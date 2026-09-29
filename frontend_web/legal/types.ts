@@ -148,6 +148,7 @@ export interface CourtCase {
   upcomingHearingDate?: string;
   disposedAt?: string;
   currentCustodian: string; // who currently holds the physical case file
+  isImmediate?: boolean; // registered via the Immediate flow, ported from other case(s)
 }
 
 // ---------------------------------------------------------------------------
