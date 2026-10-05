@@ -1,4 +1,4 @@
-# Kaaval — Integrated Digital Evidence & Chain-of-Custody Platform
+# Kaaval - Integrated Digital Evidence & Chain-of-Custody Platform
 
 [![Blockchain](https://img.shields.io/badge/Blockchain-Hyperledger%20Fabric%202.5-blue.svg)](https://www.hyperledger.org/projects/fabric)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%2016-336791.svg)](https://www.postgresql.org/)
@@ -79,14 +79,7 @@ npm install
 npm start
 ```
 
-### 5. Start Legal / Judiciary Portal (Port 5174)
-```powershell
-cd frontend_legal
-npm install
-npm run dev
-```
-
-### 6. Run Automated End-to-End Verification Suite
+### 5. Run Automated End-to-End Verification Suite
 ```powershell
 cd backend
 npm test
@@ -98,9 +91,9 @@ npm test
 
 Comprehensive architectural and operational guides are available in [`docs/`](./docs):
 
-* 🔗 [**Blockchain Architecture (`docs/BLOCKCHAIN_ARCHITECTURE.md`)**](./docs/BLOCKCHAIN_ARCHITECTURE.md) — 3-Organization Hyperledger Fabric consortium (`PoliceMSP`, `FSLMSP`, `CourtMSP`), append-only event ledger smart contract (`evidence.go`), composite key scans, and Section 63 BSA legal anchoring.
-* ⚙️ [**Backend Architecture (`docs/BACKEND_ARCHITECTURE.md`)**](./docs/BACKEND_ARCHITECTURE.md) — Unified Modular Backend design, `/api/mobile` vs `/api/web` segregation, Transactional Outbox worker engine, MinIO S3 storage adapter, and terminal diagnostics.
-* 🗄️ [**Database Schema (`docs/DATABASE_SCHEMA.md`)**](./docs/DATABASE_SCHEMA.md) — PostgreSQL 16 schema, custom ENUM types, outbox table, indexes, and foreign key integrity.
-* 📱 [**Mobile Field App Guide (`docs/MOBILE_APP_GUIDE.md`)**](./docs/MOBILE_APP_GUIDE.md) — Offline-first SQLite storage, native `expo-crypto` SHA-256 hashing at capture, and sync worker.
-* 💻 [**Web Portal Guide (`docs/WEB_PORTAL_GUIDE.md`)**](./docs/WEB_PORTAL_GUIDE.md) — React 19 / Vite management portal, role-based dashboards (Admin, Police, Forensics, Legal), and 5-second live polling sync.
-* 🛠️ [**Deployment & Operational Runbook (`docs/DEPLOYMENT_AND_RUNBOOK.md`)**](./docs/DEPLOYMENT_AND_RUNBOOK.md) — Docker Compose setup, environment variable configuration, Hyperledger Fabric test network integration, and test credentials.
+* 🔗 [**Blockchain Architecture (`docs/BLOCKCHAIN_ARCHITECTURE.md`)**](./docs/BLOCKCHAIN_ARCHITECTURE.md) - 3-Organization Hyperledger Fabric consortium (`PoliceMSP`, `FSLMSP`, `CourtMSP`), append-only event ledger smart contract (`evidence.go`), composite key scans, and Section 63 BSA legal anchoring.
+* ⚙️ [**Backend Architecture (`docs/BACKEND_ARCHITECTURE.md`)**](./docs/BACKEND_ARCHITECTURE.md) - Unified Modular Backend design, `/api/mobile` vs `/api/web` segregation, Transactional Outbox worker engine, MinIO S3 storage adapter, and terminal diagnostics.
+* 🗄️ [**Database Schema (`docs/DATABASE_SCHEMA.md`)**](./docs/DATABASE_SCHEMA.md) - PostgreSQL 16 schema, custom ENUM types, outbox table, indexes, and foreign key integrity.
+* 📱 [**Mobile Field App Guide (`docs/MOBILE_APP_GUIDE.md`)**](./docs/MOBILE_APP_GUIDE.md) - Offline-first SQLite storage, native `expo-crypto` SHA-256 hashing at capture, and sync worker.
+* 💻 [**Web Portal Guide (`docs/WEB_PORTAL_GUIDE.md`)**](./docs/WEB_PORTAL_GUIDE.md) - React 19 / Vite management portal, role-based dashboards (Admin, Police, Forensics, Legal), and 5-second live polling sync.
+* 🛠️ [**Deployment & Operational Runbook (`docs/DEPLOYMENT_AND_RUNBOOK.md`)**](./docs/DEPLOYMENT_AND_RUNBOOK.md) - Docker Compose setup, environment variable configuration, Hyperledger Fabric test network integration, and test credentials.
