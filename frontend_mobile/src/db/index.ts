@@ -28,7 +28,16 @@ async function openFreshDatabase(): Promise<SQLite.SQLiteDatabase> {
   for (const ddl of ALL_SCHEMAS) {
     await db.execAsync(ddl);
   }
+  await runMigrations(db);
   return db;
+}
+
+/** Additive column migrations — CREATE TABLE IF NOT EXISTS never alters existing installs. */
+async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(local_evidence)`);
+  if (!cols.some(c => c.name === 'thumbnail_uri')) {
+    await db.execAsync(`ALTER TABLE local_evidence ADD COLUMN thumbnail_uri TEXT;`);
+  }
 }
 
 /** Open (or reuse) the database and run schema migrations */
@@ -93,8 +102,11 @@ export async function upsertLocalCase(c: {
   version?: number;
   created_at: string;
   updated_at: string;
-}): Promise<void> {
+}, opts: { fromPull?: boolean } = {}): Promise<void> {
   const db = await openDatabase();
+  // A server pull must never overwrite a case that still has unsynced local
+  // changes (PENDING_CREATE / PENDING_UPDATE).
+  const pullGuard = opts.fromPull ? ` WHERE local_cases.sync_status = 'SYNCED'` : '';
   await db.runAsync(
     `INSERT INTO local_cases
        (case_id, title, description, status, location, officer_name,
@@ -109,7 +121,7 @@ export async function upsertLocalCase(c: {
        blockchain_hash = excluded.blockchain_hash,
        sync_status   = excluded.sync_status,
        version       = excluded.version,
-       updated_at    = excluded.updated_at`,
+       updated_at    = excluded.updated_at${pullGuard}`,
     [
       c.case_id, c.title, c.description || '', c.status || 'OPEN',
       c.location || '', c.officer_name || null, c.blockchain_hash || 'pending',
@@ -146,6 +158,7 @@ export async function upsertLocalEvidence(ev: {
   collected_location?: string;
   collected_timestamp?: string;
   uploaded_by_user_id?: string;
+  thumbnail_uri?: string | null;
   sync_status?: string;
   created_at: string;
   updated_at: string;
@@ -155,10 +168,15 @@ export async function upsertLocalEvidence(ev: {
     `INSERT INTO local_evidence
        (evidence_id, case_id, name, file_name, type, local_file_uri, remote_file_url,
         file_hash, metadata_hash, classification, integrity_status, risk_level,
-        collected_location, collected_timestamp, uploaded_by_user_id, sync_status, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        collected_location, collected_timestamp, uploaded_by_user_id, thumbnail_uri,
+        sync_status, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(evidence_id) DO UPDATE SET
-       remote_file_url    = excluded.remote_file_url,
+       name               = excluded.name,
+       type               = excluded.type,
+       file_hash          = CASE WHEN excluded.file_hash <> '' THEN excluded.file_hash ELSE local_evidence.file_hash END,
+       remote_file_url    = COALESCE(excluded.remote_file_url, local_evidence.remote_file_url),
+       thumbnail_uri      = COALESCE(excluded.thumbnail_uri, local_evidence.thumbnail_uri),
        integrity_status   = excluded.integrity_status,
        sync_status        = excluded.sync_status,
        updated_at         = excluded.updated_at`,
@@ -170,10 +188,39 @@ export async function upsertLocalEvidence(ev: {
       safe.risk_level || 'LOW',
       safe.collected_location || null, safe.collected_timestamp || null,
       safe.uploaded_by_user_id || null,
+      safe.thumbnail_uri || null,
       safe.sync_status || 'PENDING_UPLOAD',
       safe.created_at, safe.updated_at,
     ]
   ));
+}
+
+/** All local evidence in one query, decrypted and grouped by case_id (used at boot). */
+export async function getAllEvidenceGroupedByCase(): Promise<Record<string, any[]>> {
+  const db = await openDatabase();
+  const rows = await db.getAllAsync<any>(`SELECT * FROM local_evidence ORDER BY created_at ASC`);
+  const grouped: Record<string, any[]> = {};
+  for (const row of rows) {
+    const dec = await decryptEvidenceFields(row);
+    (grouped[dec.case_id] ||= []).push(dec);
+  }
+  return grouped;
+}
+
+/**
+ * After a successful full pull: drop cases (and their evidence) that were
+ * deleted server-side. Only rows already SYNCED are touched — anything with
+ * pending local changes is kept.
+ */
+export async function deleteSyncedCasesNotIn(caseIds: string[]): Promise<void> {
+  const db = await openDatabase();
+  const keep = caseIds.length ? `AND case_id NOT IN (${caseIds.map(() => '?').join(',')})` : '';
+  await db.runAsync(
+    `DELETE FROM local_evidence WHERE sync_status = 'SYNCED' AND case_id IN
+       (SELECT case_id FROM local_cases WHERE sync_status = 'SYNCED' ${keep})`,
+    caseIds
+  );
+  await db.runAsync(`DELETE FROM local_cases WHERE sync_status = 'SYNCED' ${keep}`, caseIds);
 }
 
 // ─── PENDING EVIDENCE UPLOAD RETRY ─────────────────────────────────────────
@@ -267,7 +314,7 @@ export async function enqueue(item: {
 export async function getPendingQueueItems(): Promise<any[]> {
   const db = await openDatabase();
   return db.getAllAsync(
-    `SELECT * FROM sync_queue WHERE status = 'PENDING' ORDER BY queue_id ASC`
+    `SELECT * FROM sync_queue WHERE status IN ('PENDING','FAILED') AND attempt_count < 5 ORDER BY queue_id ASC`
   );
 }
 

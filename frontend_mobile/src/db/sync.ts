@@ -114,6 +114,7 @@ export async function flushPendingEvidenceUploads(): Promise<void> {
     for (const ev of pending) {
       try {
         const result = await apiService.uploadCaseEvidence(ev.case_id, ev.local_file_uri, {
+          evidenceId: ev.evidence_id,
           name:      ev.name,
           type:      ev.type,
           location:  ev.collected_location,
@@ -124,15 +125,18 @@ export async function flushPendingEvidenceUploads(): Promise<void> {
 
         if (result?.evidence) {
           await markEvidenceSynced(ev.evidence_id, result.evidence.file_url || result.evidence.uri);
-        } else {
-          await markEvidenceUploadRetryFailed(ev.evidence_id);
         }
       } catch (err: any) {
         // Offline again, or the server rejected it (bad type, missing case,
         // stale user) — either way, count the attempt and try again on the
         // next sync trigger, up to the retry cap.
         console.warn('[sync] evidence upload retry failed:', ev.evidence_id, err?.message);
-        await markEvidenceUploadRetryFailed(ev.evidence_id);
+        // Only count attempts that reached the server and were rejected (or whose
+        // local file is gone). Pure network failures must NOT burn the retry
+        // cap, or a few flaky reconnects would permanently strand the evidence.
+        if (err?.status || err?.code === 'LOCAL_FILE_MISSING') {
+          await markEvidenceUploadRetryFailed(ev.evidence_id);
+        }
       }
     }
   } catch (err: any) {

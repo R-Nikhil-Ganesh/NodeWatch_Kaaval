@@ -25,7 +25,7 @@ export default function ScreenWrapper({ children, style }: Props) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
       {Platform.OS === 'web' ? (
         content
       ) : (

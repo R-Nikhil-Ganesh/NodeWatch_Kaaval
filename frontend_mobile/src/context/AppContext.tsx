@@ -14,7 +14,7 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system/legacy';
-import { User, Case, normalizeCaseStatus } from '../types';
+import { User, Case, Evidence, normalizeCaseStatus } from '../types';
 import { MOCK_LEDGER } from '../data/mockData';
 import { apiService } from '../services/api';
 import * as DB from '../db/index';
@@ -82,10 +82,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // 3. Load cases from SQLite immediately (zero latency)
-        const localCases = await DB.getAllLocalCases();
+        const localCases = await loadCasesFromDb();
         if (localCases.length > 0) {
-          // Map local_cases rows to the Case type expected by screens
-          setCases(localCases.map(mapLocalCaseToCase));
+          setCases(localCases);
         } else {
           // Absolute first-launch fallback — show mock ledger until sync completes
           setCases(MOCK_LEDGER);
@@ -139,20 +138,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const pullRemoteCases = async (authToken?: string | null) => {
     try {
       const remoteCases = await apiService.listCases();
-      if (!remoteCases || !remoteCases.length) return;
+      if (!Array.isArray(remoteCases)) return;
 
-      // Persist to SQLite
+      // Persist to SQLite so the data (including evidence) survives an offline
+      // restart. fromPull makes the upsert skip cases with unsynced local edits.
       for (const c of remoteCases) {
-        await DB.upsertLocalCase(mapCaseToLocal(c));
+        const caseId = c.caseId || c.case_id;
+        await DB.upsertLocalCase(mapCaseToLocal(c), { fromPull: true });
+        for (const ev of c.evidence || []) {
+          await DB.upsertLocalEvidence(mapRemoteEvidenceToLocal(caseId, ev));
+        }
       }
 
-      // Update React state — must go through the same mapper used for the
-      // SQLite-loaded path (line ~88), since the raw server response is
-      // snake_case-ish (officer_name, created_at, blockchain_hash) while
-      // screens read the camelCase Case shape (officer, timestamp,
-      // blockchainHash). Setting raw rows here made those fields render as
-      // "Unassigned"/"Recent" right after every live sync.
-      setCases(remoteCases.map(mapLocalCaseToCase));
+      // Drop cases deleted server-side (synced rows only). Skipped for an empty
+      // response so a transient/blank reply can never wipe the local cache.
+      if (remoteCases.length) {
+        await DB.deleteSyncedCasesNotIn(remoteCases.map((c: any) => c.caseId || c.case_id));
+      }
+
+      // State is rebuilt from SQLite (not the raw response) so it always equals
+      // the DB: remote rows plus any still-unsynced local cases/evidence.
+      setCases(await loadCasesFromDb());
 
       // Flush any queued local mutations now that we're online
       await flushSyncQueue(authToken ?? tokenRef.current ?? undefined);
@@ -195,7 +201,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setCases(prev => [payload, ...prev]);
 
       // 2. Enqueue for remote sync
-      await enqueue({ entityType: 'CASE', entityId: payload.caseId, actionType: 'CREATE', payload });
+      await enqueue({
+        entityType: 'CASE', entityId: payload.caseId, actionType: 'CREATE',
+        payload: { ...payload, userId: user?.id, officer_name: payload.officer },
+      });
 
       // 3. Try to push immediately if online
       const created = await apiService.createCase(payload, {
@@ -208,6 +217,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         await DB.upsertLocalCase(mapCaseToLocal({ ...created, sync_status: 'SYNCED' }));
       }
     } catch (err: any) {
+      if (err?.status === 409) {
+        // Already on the server (e.g. the sync queue pushed it first) — success.
+        await DB.upsertLocalCase(mapCaseToLocal({ ...newCase, sync_status: 'SYNCED' }));
+        return;
+      }
       if (err?.status) {
         // The server actually responded and rejected the request (e.g. a stale
         // session) — the case still exists locally as PENDING_CREATE and will
@@ -271,6 +285,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         type:      (newEvidence.type || 'IMAGE').toUpperCase(),
         timestamp: newEvidence.timestamp,
         hash,
+        evidenceId,
         userId:    user?.id,
         userRole:  user?.role?.toUpperCase(),
         userOrg:   'POLICE',
@@ -328,6 +343,71 @@ export const useApp = () => {
 };
 
 // ─── SHAPE MAPPERS ────────────────────────────────────────────────────────────
+
+/** Cases + their evidence, read from SQLite in two queries. */
+async function loadCasesFromDb(): Promise<Case[]> {
+  const [rows, evidenceByCase] = await Promise.all([
+    DB.getAllLocalCases(),
+    DB.getAllEvidenceGroupedByCase(),
+  ]);
+  return rows.map(row => mapLocalCaseToCase({
+    ...row,
+    evidence: (evidenceByCase[row.case_id] || []).map(mapLocalEvidenceToEvidence),
+  }));
+}
+
+function mapLocalEvidenceToEvidence(r: any): Evidence {
+  // Prefer the on-device file (works offline); the remote URL is a presigned
+  // link that expires.
+  const local = r.local_file_uri || '';
+  const uri = local.startsWith('file:') ? local : (r.remote_file_url || local);
+  // EvidenceScreen decides image/video/audio from mimeType or an extension in
+  // file_name/uri; stored names have no extension and presigned URLs carry a
+  // query string, so derive the mime type here.
+  const hint = [r.file_name, local, r.remote_file_url].join(' ');
+  const mimeType =
+    /\.(jpe?g|png|gif|webp|heic|bmp)(\?|\s|$)/i.test(hint) ? 'image/jpeg' :
+    /\.(mp4|mov|webm|mkv)(\?|\s|$)/i.test(hint) ? 'video/mp4' :
+    /\.(mp3|wav|ogg|m4a|aac)(\?|\s|$)/i.test(hint) ? 'audio/mpeg' :
+    undefined;
+  return {
+    type: (r.type || 'IMAGE') as Evidence['type'],
+    uri,
+    hash: r.file_hash || '',
+    timestamp: r.collected_timestamp || r.created_at,
+    name: r.name,
+    location: r.collected_location || '',
+    mimeType,
+    file_url: r.remote_file_url || undefined,
+    evidenceId: r.evidence_id,
+    thumbnailUri: r.thumbnail_uri || null,
+  };
+}
+
+function mapRemoteEvidenceToLocal(caseId: string, ev: any) {
+  const now = new Date().toISOString();
+  const url = ev.uri || ev.file_url || '';
+  return {
+    evidence_id:         ev.evidence_id || ev.id,
+    case_id:             caseId,
+    name:                ev.name || 'Evidence',
+    file_name:           ev.file_name || '',
+    type:                (ev.type || 'IMAGE').toString().toUpperCase(),
+    local_file_uri:      url,
+    remote_file_url:     url || undefined,
+    file_hash:           ev.file_hash || ev.hash || '',
+    metadata_hash:       ev.metadata_hash || '',
+    classification:      ev.classification,
+    integrity_status:    ev.integrity_status,
+    risk_level:          ev.risk_level,
+    collected_location:  ev.collected_location || ev.location,
+    collected_timestamp: ev.timestamp || ev.collected_timestamp,
+    thumbnail_uri:       ev.thumbnailUri || null,
+    sync_status:         'SYNCED',
+    created_at:          ev.created_at || now,
+    updated_at:          ev.updated_at || now,
+  };
+}
 
 function mapLocalCaseToCase(row: any): Case {
   return {

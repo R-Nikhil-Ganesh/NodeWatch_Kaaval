@@ -186,6 +186,8 @@ export default function AuthScreen({ navigation }: { navigation: AuthScreenProp 
   };
 
   // ─── PHASE 3: OTP ────────────────────────────────────────────────────────
+  // DEMO ONLY — NOT REAL MFA: the OTP is a hardcoded mock (1234) and is never
+  // verified server-side. Replace before any production use.
   // NOTE: OTP is mocked (1234) in this phase — connect to an SMS/TOTP service
   // in production.
   const handleOtpCheck = () => {

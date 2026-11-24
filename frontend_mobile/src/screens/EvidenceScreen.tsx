@@ -253,7 +253,7 @@ export default function EvidenceScreen({ route, navigation }: Props) {
         sourceHash = Buffer.from(digestBuffer).toString('hex');
       } catch (hashErr) {
         console.warn('Source hash computation fallback:', hashErr);
-        sourceHash = 'hash_' + Date.now().toString(16);
+        sourceHash = ''; // unknown — server computes its own hash instead of flagging a bogus mismatch
       }
 
       const newEvidence: Evidence = {
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
   nodeHash: { color: COLORS.textDim, fontFamily: 'Courier', fontSize: 10, marginBottom: 4 },
   nodeImage: { width: '100%', height: 120, borderRadius: 8, marginTop: 5, backgroundColor: COLORS.background, overflow: 'hidden' },
   nodeFilePlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 6 },
-  nodePlayOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  nodePlayOverlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
   nodeFilePlaceholderText: { color: COLORS.textDim, fontSize: 11, fontWeight: '600', letterSpacing: 1 },
   connectorLine: { width: 2, backgroundColor: COLORS.border, height: 30, marginLeft: 19, marginVertical: -5 }
 });

@@ -134,6 +134,7 @@ class ApiService {
       timestamp?: string;
       location?: string;
       hash?: string;
+      evidenceId?: string;
       userId?: string;
       userRole?: string;
       userOrg?: string;
@@ -143,14 +144,24 @@ class ApiService {
       const info = await FileSystem.getInfoAsync(fileUri);
       if (!info.exists) {
         console.error('uploadCaseEvidence: file does not exist', fileUri);
-        throw new Error('Local file missing before upload');
+        const missing: any = new Error('Local file missing before upload');
+        missing.code = 'LOCAL_FILE_MISSING';
+        throw missing;
       }
 
       const form = new FormData();
+      // Derive the real extension/mime from the local file (gallery picks can
+      // be PNG/HEIC etc.) instead of labelling everything .jpg / image/jpeg.
+      const uriExt = (fileUri.split('?')[0].match(/\.(\w{2,5})$/)?.[1] || 'jpg').toLowerCase();
+      const MIME_BY_EXT: Record<string, string> = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+        webp: 'image/webp', heic: 'image/heic', bmp: 'image/bmp',
+        mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf',
+      };
       const baseName = opts.name || `evidence_${Date.now()}`;
-      const fileName = baseName.match(/\.\w+$/) ? baseName : `${baseName}.jpg`;
-      const safeUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri.replace(/^\//, '')}`;
-      const mime = opts.type && opts.type.includes('/') ? opts.type : 'image/jpeg';
+      const fileName = baseName.match(/\.\w+$/) ? baseName : `${baseName}.${uriExt}`;
+      const safeUri = fileUri.startsWith('file://') ? fileUri : `file://${fileUri}`;
+      const mime = MIME_BY_EXT[uriExt] || 'image/jpeg';
 
       form.append('file', {
         uri: safeUri,
@@ -163,6 +174,8 @@ class ApiService {
       if (opts.timestamp) form.append('timestamp', opts.timestamp);
       if (opts.location) form.append('location', opts.location);
       if (opts.hash) form.append('hash', opts.hash);
+      // Stable client-generated id makes retries idempotent on the server.
+      if (opts.evidenceId) form.append('evidenceId', opts.evidenceId);
       if (opts.userId) form.append('userId', opts.userId);
       if (opts.userRole) form.append('userRole', opts.userRole);
       if (opts.userOrg) form.append('userOrg', opts.userOrg);
@@ -170,11 +183,22 @@ class ApiService {
       const url = `${API_BASE_URL}/cases/${caseID}/evidence`;
       console.log('uploadCaseEvidence -> POST (fetch)', { url, safeUri, fileName, type: mime, size: info.size });
 
-      const res = await fetch(url, {
-        method: 'POST',
-        body: form,
-        // Do NOT set Content-Type; fetch will add correct multipart boundary
-      } as any);
+      // fetch has no built-in timeout: on a dead/captive network the upload
+      // would hang forever with the UI stuck on "loading". Abort after 90s so
+      // it falls into the offline/queued path (no `status` set on the error).
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 90000);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: 'POST',
+          body: form,
+          signal: controller.signal,
+          // Do NOT set Content-Type; fetch will add correct multipart boundary
+        } as any);
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!res.ok) {
         const text = await res.text();

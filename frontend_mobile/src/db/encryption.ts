@@ -1,7 +1,7 @@
 /**
  * src/db/encryption.ts
  *
- * Application-layer AES-256-CBC field encryption.
+ * Application-layer AES-256-GCM field encryption.
  *
  * The encryption key is generated once on first app boot and stored in the
  * device's hardware-backed secure store (iOS Secure Enclave / Android Keystore)
@@ -18,102 +18,79 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
+import { AESEncryptionKey, AESKeySize, AESSealedData, aesDecryptAsync, aesEncryptAsync } from 'expo-crypto';
+import { Buffer } from 'buffer';
 
-// TODO: `Buffer` below is the Node global, which doesn't exist in RN/Hermes.
-// Every encrypt()/decrypt() call throws "Property 'Buffer' doesn't exist",
-// gets caught by that function's own try/catch, and silently falls back to
-// storing the field in PLAINTEXT — so file_hash, metadata_hash,
-// collected_location, and name are currently never actually encrypted at
-// rest, contrary to this file's own header comment. Fix: `import { Buffer }
-// from 'buffer'` (already a project dependency; see EvidenceScreen.tsx for
-// the same fix applied elsewhere).
+// Algorithm: AES-256-GCM via expo-crypto's native AES module (authenticated
+// encryption; Hermes has no Web Crypto `crypto.subtle`, and Node's `Buffer`
+// global doesn't exist in React Native, hence the explicit import above).
+//
+// Stored format: "enc2:" + base64(iv | ciphertext | tag). Values without the
+// prefix are legacy plaintext rows (the earlier implementation always failed
+// and stored plaintext) and are returned unchanged by decrypt().
 
 const KEY_STORE_ID = 'kaaval_field_enc_key_v1';
-const ALGORITHM    = 'AES-CBC';     // expo-crypto's SubtleCrypto equivalent
+const PREFIX       = 'enc2:';
 
 // Cache the key in module scope after first load to avoid repeated Keystore reads
-let _cachedKey: string | null = null;
+let _cachedKey: AESEncryptionKey | null = null;
 
 /**
- * Returns the AES-256 key as a hex string.
- * Generates and persists it on first call.
+ * Returns the AES-256 key, generating and persisting it (hex) in the secure
+ * store on first call.
  */
-export async function getEncryptionKey(): Promise<string> {
+export async function getEncryptionKey(): Promise<AESEncryptionKey> {
   if (_cachedKey) return _cachedKey;
 
-  let key = await SecureStore.getItemAsync(KEY_STORE_ID);
-  if (!key) {
-    // Generate 32 random bytes = 256-bit key
-    const bytes = await Crypto.getRandomBytesAsync(32);
-    key = Buffer.from(bytes).toString('hex');
-    await SecureStore.setItemAsync(KEY_STORE_ID, key, {
+  const stored = await SecureStore.getItemAsync(KEY_STORE_ID);
+  if (stored) {
+    _cachedKey = await AESEncryptionKey.import(stored, 'hex');
+  } else {
+    const key = await AESEncryptionKey.generate(AESKeySize.AES256);
+    await SecureStore.setItemAsync(KEY_STORE_ID, await key.encoded('hex'), {
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
+    _cachedKey = key;
   }
-  _cachedKey = key;
-  return key;
+  return _cachedKey;
 }
 
 /**
  * Encrypts a string value.
- * Returns a base64-encoded string in the format "IV:CIPHERTEXT".
- * Returns the original value unchanged if it is null/undefined/empty.
+ * Returns "enc2:<base64>". Returns the value unchanged if null/undefined/empty.
+ * On failure: plaintext fallback in dev builds only; throws in production so
+ * sensitive data is never silently stored unencrypted.
  */
 export async function encrypt(value: string | null | undefined): Promise<string> {
   if (!value) return value ?? '';
   try {
-    const keyHex = await getEncryptionKey();
-    // Use Crypto.digestStringAsync to produce a deterministic 32-byte key
-    // from the stored hex string for cross-session consistency.
-    const keyBytes = Buffer.from(keyHex, 'hex');
-    const ivBytes  = await Crypto.getRandomBytesAsync(16);
-    const iv       = Buffer.from(ivBytes);
-
-    // expo-crypto doesn't expose AES directly; use React Native's global
-    // TextEncoder + the Web Crypto API (available in Hermes on RN ≥ 0.71).
-    const keyMaterial = await (global as any).crypto.subtle.importKey(
-      'raw', keyBytes, { name: 'AES-CBC' }, false, ['encrypt']
-    );
-    const encoded   = new TextEncoder().encode(value);
-    const encrypted = await (global as any).crypto.subtle.encrypt(
-      { name: 'AES-CBC', iv: ivBytes }, keyMaterial, encoded
-    );
-
-    const ivB64  = Buffer.from(iv).toString('base64');
-    const ctB64  = Buffer.from(encrypted).toString('base64');
-    return `${ivB64}:${ctB64}`;
+    const key = await getEncryptionKey();
+    const plaintextB64 = Buffer.from(value, 'utf8').toString('base64');
+    const sealed = await aesEncryptAsync(plaintextB64, key);
+    return PREFIX + (await sealed.combined('base64'));
   } catch (e) {
-    // If encryption fails (e.g., during dev/simulator without Secure Enclave),
-    // fall through to plaintext so development is not blocked.
-    console.warn('[encryption] encrypt failed, storing plaintext:', (e as Error).message);
-    return value;
+    if (__DEV__) {
+      console.warn('[encryption] encrypt failed, storing plaintext (dev only):', (e as Error).message);
+      return value;
+    }
+    throw e;
   }
 }
 
 /**
  * Decrypts a value previously encrypted by encrypt().
- * Returns the original value if it is not in "IV:CIPHERTEXT" format.
+ * Returns the value as-is if it is not in "enc2:" format (legacy plaintext).
  */
 export async function decrypt(value: string | null | undefined): Promise<string> {
-  if (!value || !value.includes(':')) return value ?? '';
+  if (!value || !value.startsWith(PREFIX)) return value ?? '';
   try {
-    const keyHex  = await getEncryptionKey();
-    const keyBytes = Buffer.from(keyHex, 'hex');
-    const [ivB64, ctB64] = value.split(':');
-    const iv      = Buffer.from(ivB64, 'base64');
-    const ct      = Buffer.from(ctB64, 'base64');
-
-    const keyMaterial = await (global as any).crypto.subtle.importKey(
-      'raw', keyBytes, { name: 'AES-CBC' }, false, ['decrypt']
-    );
-    const decrypted = await (global as any).crypto.subtle.decrypt(
-      { name: 'AES-CBC', iv }, keyMaterial, ct
-    );
-    return new TextDecoder().decode(decrypted);
+    const key = await getEncryptionKey();
+    const sealed = AESSealedData.fromCombined(value.slice(PREFIX.length));
+    const b64 = await aesDecryptAsync(sealed, key, { output: 'base64' });
+    return Buffer.from(b64, 'base64').toString('utf8');
   } catch (e) {
     console.warn('[encryption] decrypt failed, returning raw value:', (e as Error).message);
-    return value ?? '';
+    return value;
   }
 }
 
