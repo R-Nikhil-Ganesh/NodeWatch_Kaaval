@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node test_e2e.js",
+    "test:mobile": "node --test \"tests/**/*.test.js\"",
     "db:migrate": "node src/db/migrate.cjs",
     "db:seed": "node src/db/migrate.cjs && node scripts/seed.cjs"
   },

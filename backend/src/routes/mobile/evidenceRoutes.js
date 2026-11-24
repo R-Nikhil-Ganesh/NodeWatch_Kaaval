@@ -48,8 +48,32 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
     }
 
     const evidenceId = req.body.evidenceId || `ev_${Date.now()}`;
+
+    // Idempotency: the mobile client retries uploads (timeouts, reconnects) and
+    // may race a background retry against the original request. If this
+    // evidence id already exists for this case, return it instead of creating
+    // a duplicate (or, worse, tripping the PK and deleting the stored object).
+    const { rows: dup } = await query(
+      `SELECT * FROM evidence WHERE evidence_id = $1 AND is_deleted = FALSE`, [evidenceId]
+    );
+    if (dup.length) {
+      if (dup[0].case_id !== caseId) {
+        return res.status(409).json({ error: 'Evidence id already used by another case' });
+      }
+      const existingKey = (dup[0].file_url || '').replace('minio://', '');
+      const existingUrl = existingKey
+        ? await storageService.getPublicPresignedUrl(existingKey).catch(() => dup[0].file_url)
+        : dup[0].file_url;
+      return res.status(200).json({
+        case: { case_id: caseId },
+        evidence: { ...dup[0], id: dup[0].evidence_id, hash: dup[0].file_hash, uri: existingUrl },
+        duplicate: true,
+      });
+    }
     const originalName = req.body.name || req.file.originalname || `evidence_${Date.now()}.jpg`;
-    const ext = path.extname(originalName) || '.jpg';
+    // Fall back to the multipart filename's extension (the client's `name` is a
+    // human title with no extension) so a PNG isn't stored/labelled as .jpg.
+    const ext = path.extname(originalName) || path.extname(req.file.originalname || '') || '.jpg';
     // The mobile client's multipart filename (req.file.originalname) can come
     // back percent-encoded (e.g. a name with a space turns into
     // "Apparel%20exhibit.jpg") depending on how React Native's networking
@@ -204,11 +228,24 @@ router.post('/cases/:id/evidence', upload.single('file'), async (req, res) => {
       await dbClient.query('COMMIT');
     } catch (err) {
       await dbClient.query('ROLLBACK');
+      if (err.code === '23505') {
+        // Lost a race with a concurrent identical upload: that request owns the
+        // object at this key, so do NOT delete it. Return the winner's record.
+        const { rows: winner } = await query(`SELECT * FROM evidence WHERE evidence_id = $1`, [evidenceId]);
+        if (winner.length) {
+          dbClient.release(); dbClient._released = true;
+          return res.status(200).json({
+            case: { case_id: caseId },
+            evidence: { ...winner[0], id: winner[0].evidence_id, hash: winner[0].file_hash, uri: presignedDownloadUrl },
+            duplicate: true,
+          });
+        }
+      }
       // Cleanup uploaded object on database failure
       await storageService.deleteFile(objectKey).catch(() => {});
       throw err;
     } finally {
-      dbClient.release();
+      if (!dbClient._released) dbClient.release();
     }
 
     await auditService.log({
